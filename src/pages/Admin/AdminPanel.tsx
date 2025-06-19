@@ -1,17 +1,17 @@
 
 import React from 'react';
 import Layout from '@/components/Layout';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/stores/indexedDBAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Users, Coins, Settings, BarChart3, Shield, AlertTriangle } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 
 const AdminPanel = () => {
-  const { user } = useAuthStore();
+  const { profile } = useAuthStore();
 
   // Redirect if not admin or super admin
-  if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+  if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -21,7 +21,7 @@ const AdminPanel = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
           <p className="text-gray-600 mt-2">Manage SkillZone platform and users</p>
-          {user.role === 'super_admin' && (
+          {profile.role === 'super_admin' && (
             <div className="flex items-center mt-2 text-sm text-orange-600">
               <Shield className="h-4 w-4 mr-1" />
               Super Admin Access
@@ -120,7 +120,7 @@ const AdminPanel = () => {
             </CardContent>
           </Card>
 
-          {user.role === 'super_admin' && (
+          {profile.role === 'super_admin' && (
             <>
               <Card>
                 <CardHeader>

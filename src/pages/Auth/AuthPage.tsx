@@ -6,17 +6,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuthStore, SADC_COUNTRIES } from '@/stores/authStore';
+import { useAuthStore, SADC_COUNTRIES } from '@/stores/indexedDBAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
 import { Eye, EyeOff, Users, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [adminCount, setAdminCount] = useState(0);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -33,26 +31,6 @@ const AuthPage = () => {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
-
-  useEffect(() => {
-    // Count admins and super admins
-    const checkAdminCount = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id')
-          .in('role', ['admin', 'super_admin']);
-        
-        if (!error && data) {
-          setAdminCount(data.length);
-        }
-      } catch (error) {
-        console.error('Error checking admin count:', error);
-      }
-    };
-    
-    checkAdminCount();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,8 +112,6 @@ const AuthPage = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const canRegisterAsAdmin = adminCount < 3;
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -171,12 +147,10 @@ const AuthPage = () => {
               <TabsContent value="register">
                 <CardTitle>Create account</CardTitle>
                 <CardDescription>Join SkillZone and get 10 free tokens to start</CardDescription>
-                {canRegisterAsAdmin && (
-                  <div className="flex items-center text-sm text-orange-600 mt-2">
-                    <Users className="h-4 w-4 mr-1" />
-                    Admin registration available ({adminCount}/3 slots used)
-                  </div>
-                )}
+                <div className="flex items-center text-sm text-orange-600 mt-2">
+                  <Users className="h-4 w-4 mr-1" />
+                  First 3 users automatically get admin access
+                </div>
               </TabsContent>
             </Tabs>
           </CardHeader>

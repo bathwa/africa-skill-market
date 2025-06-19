@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/stores/indexedDBAuth';
 import { LogOut, User, Settings, Coins } from 'lucide-react';
 import {
   DropdownMenu,
