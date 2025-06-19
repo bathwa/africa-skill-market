@@ -27,6 +27,7 @@ interface AuthState {
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ success: boolean; error?: string }>;
   loadProfile: () => Promise<void>;
+  createProfile: () => Promise<void>;
   initialize: () => Promise<void>;
 }
 
@@ -289,23 +290,24 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   const store = useAuthStore.getState();
   
   if (session?.user) {
-    store.user = session.user;
-    store.session = session;
-    store.isAuthenticated = true;
+    useAuthStore.setState({ 
+      user: session.user, 
+      session, 
+      isAuthenticated: true 
+    });
     
     // Load profile in next tick to avoid recursion
     setTimeout(async () => {
       await store.loadProfile();
     }, 0);
   } else {
-    store.user = null;
-    store.profile = null; 
-    store.session = null;
-    store.isAuthenticated = false;
+    useAuthStore.setState({ 
+      user: null, 
+      profile: null, 
+      session: null, 
+      isAuthenticated: false 
+    });
   }
-  
-  // Update store state
-  useAuthStore.setState(store);
   
   // Initialize on first auth state change
   if (!authInitialized) {
