@@ -1,111 +1,159 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase } from '@/integrations/supabase/client';
+import { User } from '@supabase/supabase-js';
 
-export interface User {
+export interface Profile {
   id: string;
   email: string;
   name: string;
   role: 'user' | 'admin' | 'super_admin';
   country: string;
   tokens: number;
-  createdAt: string;
+  phone?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface AuthState {
   user: User | null;
+  profile: Profile | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (userData: Omit<User, 'id' | 'tokens' | 'createdAt'> & { password: string }) => Promise<boolean>;
-  logout: () => void;
-  updateTokens: (tokens: number) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (userData: { email: string; password: string; name: string; country: string; phone?: string }) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  updateProfile: (updates: Partial<Profile>) => Promise<{ success: boolean; error?: string }>;
+  loadProfile: () => Promise<void>;
 }
 
-// Super admin emails and configuration
-const SUPER_ADMIN_EMAILS = [
-  'abathwabiz@gmail.com',
-  'admin@abathwa.com',
-  'vvv.skillzone@gmail.com'
+// SADC Countries
+export const SADC_COUNTRIES = [
+  'Zimbabwe',
+  'South Africa',
+  'Botswana',
+  'Zambia',
+  'Namibia',
+  'Angola',
+  'Mozambique',
+  'Malawi'
 ];
-
-const ADMIN_USER_KEY = 'vvv.ndev';
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
+      profile: null,
       isAuthenticated: false,
 
       login: async (email: string, password: string) => {
         try {
-          // Get users from IndexedDB
-          const users = JSON.parse(localStorage.getItem('skillzone-users') || '[]');
-          const user = users.find((u: any) => u.email === email && u.password === password);
-          
-          if (user) {
-            const { password: _, ...userWithoutPassword } = user;
-            set({ user: userWithoutPassword, isAuthenticated: true });
-            return true;
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+
+          if (error) {
+            return { success: false, error: error.message };
           }
-          return false;
+
+          if (data.user) {
+            set({ user: data.user, isAuthenticated: true });
+            await get().loadProfile();
+            return { success: true };
+          }
+
+          return { success: false, error: 'Login failed' };
         } catch (error) {
           console.error('Login error:', error);
-          return false;
+          return { success: false, error: 'An unexpected error occurred' };
         }
       },
 
       register: async (userData) => {
         try {
-          const users = JSON.parse(localStorage.getItem('skillzone-users') || '[]');
-          
-          // Check if user already exists
-          if (users.find((u: any) => u.email === userData.email)) {
-            return false;
+          const { data, error } = await supabase.auth.signUp({
+            email: userData.email,
+            password: userData.password,
+            options: {
+              data: {
+                name: userData.name,
+                country: userData.country,
+                phone: userData.phone,
+              },
+              emailRedirectTo: `${window.location.origin}/dashboard`
+            }
+          });
+
+          if (error) {
+            return { success: false, error: error.message };
           }
 
-          // Determine role based on email
-          let role: 'user' | 'admin' | 'super_admin' = 'user';
-          if (SUPER_ADMIN_EMAILS.includes(userData.email)) {
-            role = 'super_admin';
+          if (data.user) {
+            set({ user: data.user, isAuthenticated: true });
+            await get().loadProfile();
+            return { success: true };
           }
 
-          const newUser = {
-            id: Date.now().toString(),
-            ...userData,
-            role,
-            tokens: 10, // Free tokens for new users
-            createdAt: new Date().toISOString(),
-          };
-
-          users.push(newUser);
-          localStorage.setItem('skillzone-users', JSON.stringify(users));
-
-          const { password: _, ...userWithoutPassword } = newUser;
-          set({ user: userWithoutPassword, isAuthenticated: true });
-          return true;
+          return { success: false, error: 'Registration failed' };
         } catch (error) {
           console.error('Registration error:', error);
-          return false;
+          return { success: false, error: 'An unexpected error occurred' };
         }
       },
 
-      logout: () => {
-        set({ user: null, isAuthenticated: false });
+      logout: async () => {
+        try {
+          await supabase.auth.signOut();
+          set({ user: null, profile: null, isAuthenticated: false });
+        } catch (error) {
+          console.error('Logout error:', error);
+        }
       },
 
-      updateTokens: (tokens: number) => {
-        const currentUser = get().user;
-        if (currentUser) {
-          const updatedUser = { ...currentUser, tokens };
-          set({ user: updatedUser });
-          
-          // Update in localStorage
-          const users = JSON.parse(localStorage.getItem('skillzone-users') || '[]');
-          const userIndex = users.findIndex((u: any) => u.id === currentUser.id);
-          if (userIndex !== -1) {
-            users[userIndex] = { ...users[userIndex], tokens };
-            localStorage.setItem('skillzone-users', JSON.stringify(users));
+      updateProfile: async (updates) => {
+        try {
+          const { profile } = get();
+          if (!profile) return { success: false, error: 'No profile found' };
+
+          const { data, error } = await supabase
+            .from('profiles')
+            .update(updates)
+            .eq('id', profile.id)
+            .select()
+            .single();
+
+          if (error) {
+            return { success: false, error: error.message };
           }
+
+          set({ profile: data });
+          return { success: true };
+        } catch (error) {
+          console.error('Update profile error:', error);
+          return { success: false, error: 'An unexpected error occurred' };
+        }
+      },
+
+      loadProfile: async () => {
+        try {
+          const { user } = get();
+          if (!user) return;
+
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+          if (error) {
+            console.error('Load profile error:', error);
+            return;
+          }
+
+          set({ profile: data });
+        } catch (error) {
+          console.error('Load profile error:', error);
         }
       },
     }),
@@ -114,3 +162,15 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Initialize auth state on app load
+supabase.auth.onAuthStateChange(async (event, session) => {
+  const { set, get } = useAuthStore.getState();
+  
+  if (session?.user) {
+    set({ user: session.user, isAuthenticated: true });
+    await get().loadProfile();
+  } else {
+    set({ user: null, profile: null, isAuthenticated: false });
+  }
+});
