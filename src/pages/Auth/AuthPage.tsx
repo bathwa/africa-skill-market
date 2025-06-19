@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore, SADC_COUNTRIES } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
-import { Eye, EyeOff, Users } from 'lucide-react';
+import { Eye, EyeOff, Users, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const AuthPage = () => {
@@ -25,7 +25,7 @@ const AuthPage = () => {
     phone: '',
   });
 
-  const { login, register, isAuthenticated } = useAuthStore();
+  const { login, register, isAuthenticated, isLoading } = useAuthStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,13 +37,17 @@ const AuthPage = () => {
   useEffect(() => {
     // Count admins and super admins
     const checkAdminCount = async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id')
-        .in('role', ['admin', 'super_admin']);
-      
-      if (!error && data) {
-        setAdminCount(data.length);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id')
+          .in('role', ['admin', 'super_admin']);
+        
+        if (!error && data) {
+          setAdminCount(data.length);
+        }
+      } catch (error) {
+        console.error('Error checking admin count:', error);
       }
     };
     
@@ -52,6 +56,25 @@ const AuthPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.email || !formData.password) {
+      toast({
+        title: "Missing information",
+        description: "Please enter both email and password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -66,7 +89,7 @@ const AuthPage = () => {
         } else {
           toast({
             title: "Login failed",
-            description: result.error || "Please check your credentials.",
+            description: result.error || "Please check your credentials and try again.",
             variant: "destructive"
           });
         }
@@ -77,6 +100,7 @@ const AuthPage = () => {
             description: "Please enter your full name.",
             variant: "destructive"
           });
+          setLoading(false);
           return;
         }
 
@@ -84,17 +108,23 @@ const AuthPage = () => {
         if (result.success) {
           toast({
             title: "Welcome to SkillZone!",
-            description: "Your account has been created with 10 free tokens.",
+            description: "Your account has been created successfully with 10 free tokens.",
           });
           navigate('/dashboard');
         } else {
           toast({
             title: "Registration failed",
-            description: result.error || "Please try again.",
+            description: result.error || "Please try again with different credentials.",
             variant: "destructive"
           });
         }
       }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -105,6 +135,17 @@ const AuthPage = () => {
   };
 
   const canRegisterAsAdmin = adminCount < 3;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -219,7 +260,14 @@ const AuthPage = () => {
               </div>
               
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isLogin ? 'Signing in...' : 'Creating account...'}
+                  </>
+                ) : (
+                  isLogin ? 'Sign In' : 'Create Account'
+                )}
               </Button>
             </form>
           </CardContent>

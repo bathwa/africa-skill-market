@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 import Layout from '@/components/Layout';
 
 const Login = () => {
@@ -21,24 +22,17 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password);
-      if (success) {
+      const result = await login(email, password);
+      if (result.success) {
         toast({
           title: "Welcome back!",
           description: "You have successfully logged in.",
         });
-        
-        // Check if user is admin/super_admin and redirect accordingly
-        const user = useAuthStore.getState().user;
-        if (user?.role === 'super_admin' || user?.role === 'admin') {
-          navigate('/admin');
-        } else {
-          navigate('/dashboard');
-        }
+        navigate('/dashboard');
       } else {
         toast({
           title: "Login failed",
-          description: "Invalid email or password. Please try again.",
+          description: result.error || "Invalid email or password. Please try again.",
           variant: "destructive",
         });
       }
@@ -101,14 +95,21 @@ const Login = () => {
                 className="w-full bg-blue-700 hover:bg-blue-800"
                 disabled={isLoading}
               >
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  'Sign In'
+                )}
               </Button>
             </form>
             
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Don't have an account?{' '}
-                <Link to="/register" className="text-blue-700 hover:text-blue-800 font-medium">
+                <Link to="/auth" className="text-blue-700 hover:text-blue-800 font-medium">
                   Sign up
                 </Link>
               </p>
