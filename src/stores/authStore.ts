@@ -64,7 +64,7 @@ export const useAuthStore = create<AuthState>()(
           }
 
           // Determine role based on email
-          let role = 'user';
+          let role: 'user' | 'admin' | 'super_admin' = 'user';
           if (SUPER_ADMIN_EMAILS.includes(userData.email)) {
             role = 'super_admin';
           }
