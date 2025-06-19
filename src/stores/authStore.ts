@@ -165,12 +165,23 @@ export const useAuthStore = create<AuthState>()(
 
 // Initialize auth state on app load
 supabase.auth.onAuthStateChange(async (event, session) => {
-  const { set, get } = useAuthStore.getState();
+  console.log('Auth state change:', event, session);
   
   if (session?.user) {
-    set({ user: session.user, isAuthenticated: true });
-    await get().loadProfile();
+    useAuthStore.setState({ 
+      user: session.user, 
+      isAuthenticated: true 
+    });
+    
+    // Load profile after state update
+    setTimeout(async () => {
+      await useAuthStore.getState().loadProfile();
+    }, 0);
   } else {
-    set({ user: null, profile: null, isAuthenticated: false });
+    useAuthStore.setState({ 
+      user: null, 
+      profile: null, 
+      isAuthenticated: false 
+    });
   }
 });

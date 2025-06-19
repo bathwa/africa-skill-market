@@ -6,8 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuthStore } from '@/stores/authStore';
-import { SADC_COUNTRIES } from '@/stores/appStore';
+import { useAuthStore, SADC_COUNTRIES } from '@/stores/authStore';
 import { toast } from '@/hooks/use-toast';
 import Layout from '@/components/Layout';
 
@@ -39,7 +38,7 @@ const Register = () => {
       return;
     }
     
-    if (formData.password.length <6) {
+    if (formData.password.length < 6) {
       toast({
         title: "Password too short",
         description: "Password must be at least 6 characters long.",
@@ -51,31 +50,24 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      const success = await register({
+      const result = await register({
         name: formData.name,
         email: formData.email,
         password: formData.password,
         country: formData.country,
-        role: 'user',
       });
 
-      if (success) {
+      if (result.success) {
         toast({
           title: "Welcome to SkillZone!",
           description: "Your account has been created successfully. You received 10 free tokens!",
         });
         
-        // Check if user is admin/super_admin and redirect accordingly
-        const user = useAuthStore.getState().user;
-        if (user?.role === 'super_admin' || user?.role === 'admin') {
-          navigate('/admin');
-        } else {
-          navigate('/dashboard');
-        }
+        navigate('/dashboard');
       } else {
         toast({
           title: "Registration failed",
-          description: "An account with this email already exists.",
+          description: result.error || "An error occurred during registration.",
           variant: "destructive",
         });
       }
@@ -185,7 +177,7 @@ const Register = () => {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}
-                <Link to="/login" className="text-blue-700 hover:text-blue-800 font-medium">
+                <Link to="/auth" className="text-blue-700 hover:text-blue-800 font-medium">
                   Sign in
                 </Link>
               </p>

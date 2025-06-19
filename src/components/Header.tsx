@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const Header = () => {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, profile, isAuthenticated, logout } = useAuthStore();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -54,18 +54,18 @@ const Header = () => {
 
           {/* Auth Section */}
           <div className="flex items-center space-x-4">
-            {isAuthenticated ? (
+            {isAuthenticated && profile ? (
               <>
                 <div className="flex items-center space-x-2 text-sm">
                   <Coins className="h-4 w-4 text-orange-600" />
-                  <span className="font-medium">{user?.tokens} tokens</span>
+                  <span className="font-medium">{profile.tokens} tokens</span>
                 </div>
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="flex items-center space-x-2">
                       <User className="h-4 w-4" />
-                      <span className="hidden sm:inline">{user?.name}</span>
+                      <span className="hidden sm:inline">{profile.name}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
@@ -73,7 +73,7 @@ const Header = () => {
                       <User className="h-4 w-4 mr-2" />
                       Dashboard
                     </DropdownMenuItem>
-                    {(user?.role === 'admin' || user?.role === 'super_admin') && (
+                    {(profile.role === 'admin' || profile.role === 'super_admin') && (
                       <DropdownMenuItem onClick={() => navigate('/admin')}>
                         <Settings className="h-4 w-4 mr-2" />
                         Admin Panel
@@ -89,10 +89,10 @@ const Header = () => {
               </>
             ) : (
               <div className="flex items-center space-x-3">
-                <Link to="/login">
+                <Link to="/auth">
                   <Button variant="ghost" size="sm">Login</Button>
                 </Link>
-                <Link to="/register">
+                <Link to="/auth">
                   <Button size="sm" className="bg-blue-700 hover:bg-blue-800">Sign Up</Button>
                 </Link>
               </div>
