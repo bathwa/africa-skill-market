@@ -43,13 +43,37 @@ const CreateOpportunity = () => {
   }
 
   const categories = [
+    'welding',
+    'painting',
+    'building-construction',
+    'plumbing',
+    'electrical',
+    'home-helper',
+    'gardener',
+    'hvac-tech',
+    'mechanic',
+    'auto-electrician',
     'web-development',
     'mobile-development', 
     'design',
     'writing',
     'marketing',
     'consulting',
+    'photography',
+    'catering',
+    'cleaning-services',
+    'tutoring',
     'other'
+  ];
+
+  const skillOptions = [
+    'Welding', 'Painting', 'Building & Construction', 'Plumbing', 'Electrical',
+    'Home Helper', 'Gardener', 'HVAC Tech', 'Mechanic', 'Auto Electrician',
+    'Web Development', 'Mobile Development', 'Design', 'Writing', 'Marketing',
+    'Consulting', 'Photography', 'Catering', 'Cleaning Services', 'Tutoring',
+    'Carpentry', 'Roofing', 'Tiling', 'Painting & Decorating', 'Landscaping',
+    'Solar Installation', 'Pool Maintenance', 'Security Installation',
+    'Appliance Repair', 'Pest Control', 'Moving Services', 'Event Planning'
   ];
 
   const handleAddSkill = () => {
@@ -239,12 +263,16 @@ const CreateOpportunity = () => {
               <div>
                 <label className="block text-sm font-medium mb-2">Required Skills</label>
                 <div className="flex gap-2 mb-3">
-                  <Input
-                    value={newSkill}
-                    onChange={(e) => setNewSkill(e.target.value)}
-                    placeholder="Add a required skill"
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())}
-                  />
+                  <Select value={newSkill} onValueChange={setNewSkill}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select required skills" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {skillOptions.map(skill => (
+                        <SelectItem key={skill} value={skill}>{skill}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button type="button" onClick={handleAddSkill} size="sm">
                     <Plus className="h-4 w-4" />
                   </Button>

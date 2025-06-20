@@ -10,6 +10,7 @@ export interface Profile {
   country: string;
   tokens: number;
   phone?: string;
+  profile_image?: string;
   experience_points?: number;
   rating?: number;
   total_ratings?: number;
@@ -28,7 +29,7 @@ interface AuthState {
   profile: Profile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, adminKey?: string) => Promise<{ success: boolean; error?: string }>;
   register: (userData: { email: string; password: string; name: string; country: string; phone?: string; role?: 'client' | 'service_provider' }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateProfile: (updates: Partial<Profile>) => Promise<{ success: boolean; error?: string }>;
@@ -46,6 +47,10 @@ export const SADC_COUNTRIES = [
   'Mozambique',
   'Malawi'
 ];
+
+// Super admin emails
+const SUPER_ADMIN_EMAILS = ['admin@abathwa.com', 'abathwabiz@gmail.com'];
+const ADMIN_KEY = 'vvv.ndev';
 
 // Token pricing
 export const TOKEN_PRICE_USD = 0.50;
@@ -73,7 +78,7 @@ class AuthDB {
         // Users store
         if (!db.objectStoreNames.contains('users')) {
           const userStore = db.createObjectStore('users', { keyPath: 'id' });
-          userStore.createIndex('email', 'email', { unique: true });
+          userStore.createIndex('email', 'email',   { unique: true });
         }
         
         // Profiles store
@@ -96,11 +101,12 @@ class AuthDB {
     const userStore = transaction.objectStore('users');
     const passwordStore = transaction.objectStore('passwords');
     
-    // Simple password hashing (in production, use proper bcrypt)
-    const hashedPassword = btoa(password + user.email);
+    // Enhanced password hashing
+    const salt = crypto.randomUUID();
+    const hashedPassword = btoa(password + salt + user.email);
     
     await userStore.put(user);
-    await passwordStore.put({ userId: user.id, password: hashedPassword });
+    await passwordStore.put({ userId: user.id, password: hashedPassword, salt });
   }
 
   async getUser(email: string): Promise<User | null> {
@@ -127,7 +133,8 @@ class AuthDB {
       const request = store.get(userId);
       request.onsuccess = () => {
         if (request.result) {
-          const expectedHash = btoa(password + email);
+          const { salt } = request.result;
+          const expectedHash = btoa(password + salt + email);
           resolve(request.result.password === expectedHash);
         } else {
           resolve(false);
@@ -186,7 +193,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: false });
       },
 
-      login: async (email: string, password: string) => {
+      login: async (email: string, password: string, adminKey?: string) => {
         try {
           set({ isLoading: true });
           
@@ -205,7 +212,16 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: 'Invalid password' };
           }
 
-          const profile = await authDB.getProfile(user.id);
+          let profile = await authDB.getProfile(user.id);
+          
+          // Check for super admin login
+          if (SUPER_ADMIN_EMAILS.includes(email) && adminKey === ADMIN_KEY && profile) {
+            profile = {
+              ...profile,
+              role: 'super_admin'
+            };
+            await authDB.saveProfile(profile);
+          }
           
           set({ 
             user,
@@ -252,7 +268,11 @@ export const useAuthStore = create<AuthState>()(
 
           // Determine role based on registration type and admin count
           let role: Profile['role'] = userData.role || 'user';
-          if (adminCount < 3 && !userData.role) {
+          
+          // Auto-assign admin role if super admin email or if admin count < 3
+          if (SUPER_ADMIN_EMAILS.includes(userData.email)) {
+            role = 'super_admin';
+          } else if (adminCount < 3 && !userData.role) {
             role = 'admin';
           }
 

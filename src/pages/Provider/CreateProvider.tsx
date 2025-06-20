@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { useAuthStore } from '@/stores/indexedDBAuth';
+import { useProviderStore } from '@/stores/providerStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,28 +11,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Plus, X, User, Briefcase, Star } from 'lucide-react';
-
-interface ServiceProviderProfile {
-  id: string;
-  user_id: string;
-  business_name: string;
-  description: string;
-  skills: string[];
-  experience_years: number;
-  hourly_rate: number;
-  currency: 'USD' | 'ZAR';
-  portfolio_links: string[];
-  certifications: string[];
-  rating: number;
-  total_reviews: number;
-  completed_projects: number;
-  created_at: string;
-  updated_at: string;
-}
+import { Upload, X, Plus, User } from 'lucide-react';
 
 const CreateProvider = () => {
   const { profile, updateProfile } = useAuthStore();
+  const { createProfile } = useProviderStore();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -43,6 +27,8 @@ const CreateProvider = () => {
     currency: 'USD' as 'USD' | 'ZAR',
     portfolio_links: [] as string[],
     certifications: [] as string[],
+    work_images: [] as File[],
+    profile_image: null as File | null,
   });
 
   const [newSkill, setNewSkill] = useState('');
@@ -50,37 +36,97 @@ const CreateProvider = () => {
   const [newCertification, setNewCertification] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!profile || profile.role !== 'service_provider') {
+  if (!profile) {
     return (
       <Layout>
         <div className="text-center py-12">
-          <p>Access denied. Only service providers can create profiles.</p>
+          <p>Please log in to create a provider profile.</p>
         </div>
       </Layout>
     );
   }
 
-  const handleAddItem = (
-    type: 'skills' | 'portfolio_links' | 'certifications',
-    value: string,
-    setValue: (value: string) => void
-  ) => {
-    if (value.trim() && !formData[type].includes(value.trim())) {
+  const skillOptions = [
+    'Welding', 'Painting', 'Building & Construction', 'Plumbing', 'Electrical',
+    'Home Helper', 'Gardener', 'HVAC Tech', 'Mechanic', 'Auto Electrician',
+    'Web Development', 'Mobile Development', 'Design', 'Writing', 'Marketing',
+    'Consulting', 'Photography', 'Catering', 'Cleaning Services', 'Tutoring',
+    'Carpentry', 'Roofing', 'Tiling', 'Painting & Decorating', 'Landscaping'
+  ];
+
+  const handleAddSkill = () => {
+    if (newSkill.trim() && !formData.skills.includes(newSkill.trim())) {
       setFormData(prev => ({
         ...prev,
-        [type]: [...prev[type], value.trim()]
+        skills: [...prev.skills, newSkill.trim()]
       }));
-      setValue('');
+      setNewSkill('');
     }
   };
 
-  const handleRemoveItem = (
-    type: 'skills' | 'portfolio_links' | 'certifications',
-    itemToRemove: string
-  ) => {
+  const handleRemoveSkill = (skillToRemove: string) => {
     setFormData(prev => ({
       ...prev,
-      [type]: prev[type].filter(item => item !== itemToRemove)
+      skills: prev.skills.filter(skill => skill !== skillToRemove)
+    }));
+  };
+
+  const handleAddPortfolioLink = () => {
+    if (newPortfolioLink.trim() && !formData.portfolio_links.includes(newPortfolioLink.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        portfolio_links: [...prev.portfolio_links, newPortfolioLink.trim()]
+      }));
+      setNewPortfolioLink('');
+    }
+  };
+
+  const handleRemovePortfolioLink = (linkToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      portfolio_links: prev.portfolio_links.filter(link => link !== linkToRemove)
+    }));
+  };
+
+  const handleAddCertification = () => {
+    if (newCertification.trim() && !formData.certifications.includes(newCertification.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        certifications: [...prev.certifications, newCertification.trim()]
+      }));
+      setNewCertification('');
+    }
+  };
+
+  const handleRemoveCertification = (certToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      certifications: prev.certifications.filter(cert => cert !== certToRemove)
+    }));
+  };
+
+  const handleWorkImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setFormData(prev => ({
+      ...prev,
+      work_images: [...prev.work_images, ...files]
+    }));
+  };
+
+  const handleProfileImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setFormData(prev => ({
+        ...prev,
+        profile_image: file
+      }));
+    }
+  };
+
+  const handleRemoveWorkImage = (imageToRemove: File) => {
+    setFormData(prev => ({
+      ...prev,
+      work_images: prev.work_images.filter(img => img !== imageToRemove)
     }));
   };
 
@@ -90,7 +136,7 @@ const CreateProvider = () => {
     if (!formData.business_name || !formData.description || formData.skills.length === 0) {
       toast({
         title: "Validation Error",
-        description: "Please fill in all required fields and add at least one skill.",
+        description: "Please fill in all required fields.",
         variant: "destructive"
       });
       return;
@@ -99,39 +145,43 @@ const CreateProvider = () => {
     setIsSubmitting(true);
 
     try {
-      // Create service provider profile in IndexedDB
-      const providerProfile: ServiceProviderProfile = {
-        id: crypto.randomUUID(),
+      const profileData = {
         user_id: profile.id,
-        ...formData,
-        rating: 0,
-        total_reviews: 0,
-        completed_projects: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        business_name: formData.business_name,
+        description: formData.description,
+        skills: formData.skills,
+        experience_years: formData.experience_years,
+        hourly_rate: formData.hourly_rate,
+        currency: formData.currency,
+        portfolio_links: formData.portfolio_links,
+        certifications: formData.certifications,
+        country: profile.country,
       };
 
-      // Store in local storage for now (would be IndexedDB in production)
-      const existingProfiles = JSON.parse(localStorage.getItem('service_provider_profiles') || '[]');
-      existingProfiles.push(providerProfile);
-      localStorage.setItem('service_provider_profiles', JSON.stringify(existingProfiles));
+      const result = await createProfile(profileData);
 
-      // Update user profile to indicate they have a provider profile
-      await updateProfile({ 
-        provider_profile_created: true,
-        provider_profile_id: providerProfile.id 
-      });
-
-      toast({
-        title: "Profile Created",
-        description: "Your service provider profile has been created successfully!",
-      });
-      
-      navigate('/dashboard');
+      if (result.success) {
+        // Update user profile to reflect provider profile creation
+        await updateProfile({ 
+          role: 'service_provider'
+        });
+        
+        toast({
+          title: "Profile Created",
+          description: "Your service provider profile has been created successfully!",
+        });
+        navigate('/providers');
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to create profile",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create profile. Please try again.",
+        description: "An unexpected error occurred",
         variant: "destructive"
       });
     } finally {
@@ -149,19 +199,45 @@ const CreateProvider = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-6 w-6" />
-              Professional Information
-            </CardTitle>
+            <CardTitle>Professional Profile</CardTitle>
             <CardDescription>
-              Provide details about your services and expertise
+              Provide detailed information about your services and experience
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-2">Business/Professional Name *</label>
+                  <label className="block text-sm font-medium mb-2">Profile Picture</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center">
+                      {formData.profile_image ? (
+                        <img 
+                          src={URL.createObjectURL(formData.profile_image)} 
+                          alt="Profile" 
+                          className="w-full h-full rounded-full object-cover"
+                        />
+                      ) : (
+                        <User className="h-8 w-8 text-gray-400" />
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageUpload}
+                      className="hidden"
+                      id="profile-image-upload"
+                    />
+                    <label htmlFor="profile-image-upload" className="cursor-pointer">
+                      <Button type="button" variant="outline" size="sm">
+                        Upload Photo
+                      </Button>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2">Business Name *</label>
                   <Input
                     value={formData.business_name}
                     onChange={(e) => setFormData(prev => ({ ...prev, business_name: e.target.value }))}
@@ -176,19 +252,19 @@ const CreateProvider = () => {
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="Describe your services, experience, and what makes you unique..."
-                    rows={6}
+                    rows={4}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Years of Experience</label>
+                  <label className="block text-sm font-medium mb-2">Experience (Years)</label>
                   <Input
                     type="number"
                     min="0"
                     value={formData.experience_years}
                     onChange={(e) => setFormData(prev => ({ ...prev, experience_years: Number(e.target.value) }))}
-                    placeholder="Years of professional experience"
+                    placeholder="Years of experience"
                   />
                 </div>
 
@@ -201,7 +277,7 @@ const CreateProvider = () => {
                       step="0.01"
                       value={formData.hourly_rate}
                       onChange={(e) => setFormData(prev => ({ ...prev, hourly_rate: Number(e.target.value) }))}
-                      placeholder="0.00"
+                      placeholder="Your hourly rate"
                     />
                     <Select 
                       value={formData.currency} 
@@ -220,19 +296,19 @@ const CreateProvider = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Skills & Expertise *</label>
+                <label className="block text-sm font-medium mb-2">Skills & Services *</label>
                 <div className="flex gap-2 mb-3">
-                  <Input
-                    value={newSkill}
-                    onChange={(e) => setNewSkill(e.target.value)}
-                    placeholder="Add a skill"
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddItem('skills', newSkill, setNewSkill))}
-                  />
-                  <Button 
-                    type="button" 
-                    onClick={() => handleAddItem('skills', newSkill, setNewSkill)} 
-                    size="sm"
-                  >
+                  <Select value={newSkill} onValueChange={setNewSkill}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select a skill" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {skillOptions.map(skill => (
+                        <SelectItem key={skill} value={skill}>{skill}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" onClick={handleAddSkill} size="sm">
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -242,11 +318,54 @@ const CreateProvider = () => {
                       {skill}
                       <X 
                         className="h-3 w-3 ml-1" 
-                        onClick={() => handleRemoveItem('skills', skill)}
+                        onClick={() => handleRemoveSkill(skill)}
                       />
                     </Badge>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Work Images</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <p className="text-gray-600 mb-2">Upload images of your work</p>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleWorkImageUpload}
+                    className="hidden"
+                    id="work-images-upload"
+                  />
+                  <label htmlFor="work-images-upload" className="cursor-pointer">
+                    <Button type="button" variant="outline" size="sm">
+                      Choose Images
+                    </Button>
+                  </label>
+                </div>
+                {formData.work_images.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {formData.work_images.map((image, index) => (
+                      <div key={index} className="relative">
+                        <img
+                          src={URL.createObjectURL(image)}
+                          alt={`Work ${index + 1}`}
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-1 right-1 h-6 w-6 p-0"
+                          onClick={() => handleRemoveWorkImage(image)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -255,28 +374,24 @@ const CreateProvider = () => {
                   <Input
                     value={newPortfolioLink}
                     onChange={(e) => setNewPortfolioLink(e.target.value)}
-                    placeholder="https://your-portfolio.com"
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddItem('portfolio_links', newPortfolioLink, setNewPortfolioLink))}
+                    placeholder="Add portfolio or website link"
+                    type="url"
                   />
-                  <Button 
-                    type="button" 
-                    onClick={() => handleAddItem('portfolio_links', newPortfolioLink, setNewPortfolioLink)} 
-                    size="sm"
-                  >
+                  <Button type="button" onClick={handleAddPortfolioLink} size="sm">
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
                 <div className="space-y-2">
                   {formData.portfolio_links.map((link, index) => (
                     <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
                         {link}
                       </a>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleRemoveItem('portfolio_links', link)}
+                        onClick={() => handleRemovePortfolioLink(link)}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -291,14 +406,9 @@ const CreateProvider = () => {
                   <Input
                     value={newCertification}
                     onChange={(e) => setNewCertification(e.target.value)}
-                    placeholder="Add a certification"
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddItem('certifications', newCertification, setNewCertification))}
+                    placeholder="Add certification or qualification"
                   />
-                  <Button 
-                    type="button" 
-                    onClick={() => handleAddItem('certifications', newCertification, setNewCertification)} 
-                    size="sm"
-                  >
+                  <Button type="button" onClick={handleAddCertification} size="sm">
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -308,7 +418,7 @@ const CreateProvider = () => {
                       {cert}
                       <X 
                         className="h-3 w-3 ml-1" 
-                        onClick={() => handleRemoveItem('certifications', cert)}
+                        onClick={() => handleRemoveCertification(cert)}
                       />
                     </Badge>
                   ))}

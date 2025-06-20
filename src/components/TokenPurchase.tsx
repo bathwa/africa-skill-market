@@ -17,7 +17,7 @@ interface TokenPurchaseProps {
 
 const TokenPurchase = ({ children }: TokenPurchaseProps) => {
   const { profile } = useAuthStore();
-  const { createPurchaseRequest } = useTokenStore();
+  const { createPurchase } = useTokenStore();
   
   const [amount, setAmount] = useState(10);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -32,6 +32,45 @@ const TokenPurchase = ({ children }: TokenPurchaseProps) => {
     const costUSD = tokens * 0.5;
     const costZAR = tokens * 10;
     return { usd: costUSD, zar: costZAR };
+  };
+
+  const getEscrowDetails = (country: string, currency: string) => {
+    if (country === 'Zimbabwe') {
+      return {
+        support: {
+          phone: '+263 78 998 9619',
+          email: 'admin@abathwa.com',
+          whatsapp: 'wa.me/789989619'
+        },
+        accounts: [
+          {
+            type: 'Mobile Wallets (Ecocash, Omari, Innbucks)',
+            details: '0788420479 Vusa Ncube'
+          },
+          {
+            type: 'Innbucks MicroBank',
+            details: 'Account Name: Abathwa Incubator PBC\nAccount Number: 013113351190001'
+          }
+        ]
+      };
+    }
+    
+    // Default escrow details for other countries
+    return {
+      support: {
+        phone: '+1 555 0123',
+        email: 'support@skillzone.com',
+        whatsapp: 'wa.me/15550123'
+      },
+      accounts: [
+        {
+          type: currency === 'ZAR' ? 'First National Bank' : 'Wells Fargo',
+          details: currency === 'ZAR' 
+            ? 'Account Name: SkillZone Platform\nAccount Number: 1234567890\nBranch Code: 250655'
+            : 'Account Name: SkillZone Platform LLC\nAccount Number: 0987654321\nRouting Number: 121000248'
+        }
+      ]
+    };
   };
 
   const handlePurchaseRequest = async () => {
@@ -51,33 +90,18 @@ const TokenPurchase = ({ children }: TokenPurchaseProps) => {
       const currency = profile.country === 'South Africa' ? 'ZAR' : 'USD';
       const totalCost = currency === 'ZAR' ? cost.zar : cost.usd;
 
-      const result = await createPurchaseRequest({
-        user_id: profile.id,
-        tokens_requested: amount,
-        amount_paid: totalCost,
-        currency,
-        status: 'pending',
-      });
+      const result = await createPurchase(profile.id, totalCost, currency);
 
-      if (result.success) {
+      if (result.success && result.voucher) {
+        const escrowDetails = getEscrowDetails(profile.country, currency);
+        
         setPaymentDetails({
-          id: result.data?.id,
+          id: result.voucher.id,
           tokens: amount,
           cost: totalCost,
           currency,
-          bankDetails: currency === 'ZAR' ? {
-            bank: 'First National Bank',
-            accountName: 'SkillZone Platform',
-            accountNumber: '1234567890',
-            branchCode: '250655',
-            reference: `TOKEN-${result.data?.id}`
-          } : {
-            bank: 'Wells Fargo',
-            accountName: 'SkillZone Platform LLC',
-            accountNumber: '0987654321',
-            routingNumber: '121000248',
-            reference: `TOKEN-${result.data?.id}`
-          }
+          reference: result.voucher.reference,
+          escrow: escrowDetails
         });
         setShowPaymentDetails(true);
         
@@ -113,7 +137,6 @@ const TokenPurchase = ({ children }: TokenPurchaseProps) => {
       return;
     }
 
-    // Here you would typically upload the proof and update the purchase request
     toast({
       title: "Proof Submitted",
       description: "Your proof of payment has been submitted for review.",
@@ -199,68 +222,33 @@ const TokenPurchase = ({ children }: TokenPurchaseProps) => {
                     <CardTitle className="text-lg">Payment Details</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Bank:</label>
-                        <p className="font-medium">{paymentDetails.bankDetails.bank}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Account Name:</label>
-                        <p className="font-medium">{paymentDetails.bankDetails.accountName}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Account Number:</label>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{paymentDetails.bankDetails.accountNumber}</p>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => copyToClipboard(paymentDetails.bankDetails.accountNumber)}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">
-                          {paymentDetails.currency === 'ZAR' ? 'Branch Code:' : 'Routing Number:'}
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">
-                            {paymentDetails.currency === 'ZAR' 
-                              ? paymentDetails.bankDetails.branchCode 
-                              : paymentDetails.bankDetails.routingNumber}
-                          </p>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => copyToClipboard(
-                              paymentDetails.currency === 'ZAR' 
-                                ? paymentDetails.bankDetails.branchCode 
-                                : paymentDetails.bankDetails.routingNumber
-                            )}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <label className="text-sm font-medium text-gray-600">Reference:</label>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-blue-600">{paymentDetails.bankDetails.reference}</p>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => copyToClipboard(paymentDetails.bankDetails.reference)}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="col-span-2 p-3 bg-yellow-50 rounded-lg">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="p-3 bg-yellow-50 rounded-lg">
                         <p className="text-lg font-bold text-center">
                           Amount to Pay: {paymentDetails.currency} {paymentDetails.cost}
                         </p>
+                        <p className="text-sm text-center text-gray-600">
+                          Reference: {paymentDetails.reference}
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <h4 className="font-semibold">Payment Options ({profile.country}):</h4>
+                        {paymentDetails.escrow.accounts.map((account: any, index: number) => (
+                          <div key={index} className="p-3 border rounded-lg">
+                            <p className="font-medium">{account.type}</p>
+                            <p className="text-sm whitespace-pre-line">{account.details}</p>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="font-semibold">Support Contacts:</h4>
+                        <div className="text-sm space-y-1">
+                          <p>Phone: {paymentDetails.escrow.support.phone}</p>
+                          <p>Email: {paymentDetails.escrow.support.email}</p>
+                          <p>WhatsApp: {paymentDetails.escrow.support.whatsapp}</p>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -275,7 +263,7 @@ const TokenPurchase = ({ children }: TokenPurchaseProps) => {
                     rows={4}
                   />
                   <p className="text-xs text-gray-600 mt-1">
-                    Include transaction reference, date, and amount. You can also upload a screenshot as text or PDF details.
+                    Include transaction reference, date, and amount.
                   </p>
                 </div>
 

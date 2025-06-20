@@ -1,275 +1,253 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/stores/indexedDBAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuthStore, SADC_COUNTRIES } from '@/stores/indexedDBAuth';
-import { useNavigate } from 'react-router-dom';
-import { toast } from '@/components/ui/use-toast';
-import { Eye, EyeOff, Loader2, User, Briefcase, ShoppingCart } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { toast } from '@/hooks/use-toast';
+import { Eye, EyeOff, Shield } from 'lucide-react';
+import { SADC_COUNTRIES } from '@/stores/indexedDBAuth';
 
 const AuthPage = () => {
+  const { login, register } = useAuthStore();
+  const navigate = useNavigate();
+  
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     name: '',
-    country: 'Zimbabwe',
+    country: '',
     phone: '',
     role: 'client' as 'client' | 'service_provider',
+    adminKey: ''
   });
 
-  const { login, register, isAuthenticated, isLoading } = useAuthStore();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard');
-    }
-  }, [isAuthenticated, navigate]);
+  const superAdminEmails = ['admin@abathwa.com', 'abathwabiz@gmail.com'];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.email || !formData.password) {
-      toast({
-        title: "Missing information",
-        description: "Please enter both email and password.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      toast({
-        title: "Password too short",
-        description: "Password must be at least 6 characters long.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoading(true);
+    setIsLoading(true);
 
     try {
       if (isLogin) {
-        const result = await login(formData.email, formData.password);
+        const result = await login(
+          formData.email, 
+          formData.password, 
+          showAdminLogin ? formData.adminKey : undefined
+        );
+        
         if (result.success) {
           toast({
             title: "Welcome back!",
-            description: "You have been successfully logged in.",
+            description: "You have been logged in successfully.",
           });
           navigate('/dashboard');
         } else {
           toast({
             title: "Login failed",
-            description: result.error || "Please check your credentials and try again.",
+            description: result.error,
             variant: "destructive"
           });
         }
       } else {
-        if (!formData.name.trim()) {
+        if (!formData.name || !formData.country) {
           toast({
-            title: "Name required",
-            description: "Please enter your full name.",
+            title: "Missing information",
+            description: "Please fill in all required fields.",
             variant: "destructive"
           });
-          setLoading(false);
           return;
         }
 
         const result = await register({
-          ...formData,
+          email: formData.email,
+          password: formData.password,
+          name: formData.name,
+          country: formData.country,
+          phone: formData.phone,
           role: formData.role
         });
+        
         if (result.success) {
           toast({
-            title: "Welcome to SkillZone!",
-            description: "Your account has been created successfully with 10 free tokens.",
+            title: "Account created!",
+            description: "Your account has been created successfully.",
           });
           navigate('/dashboard');
         } else {
           toast({
             title: "Registration failed",
-            description: result.error || "Please try again with different credentials.",
+            description: result.error,
             variant: "destructive"
           });
         }
       }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        title: "An error occurred",
+        description: "Please try again later.",
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleEmailChange = (email: string) => {
+    setFormData(prev => ({ ...prev, email }));
+    setShowAdminLogin(superAdminEmails.includes(email));
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">SkillZone</h1>
-          <p className="text-gray-600">Connect skilled professionals with opportunities</p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold">
+            {isLogin ? 'Welcome Back' : 'Join SkillZone'}
+          </CardTitle>
+          <CardDescription>
+            {isLogin 
+              ? 'Sign in to your account' 
+              : 'Create your account to get started'
+            }
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Email</label>
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                placeholder="Enter your email"
+                required
+              />
+            </div>
 
-        <Card>
-          <CardHeader>
-            <Tabs value={isLogin ? "login" : "register"} onValueChange={(value) => setIsLogin(value === "login")}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="register">Register</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="login">
-                <CardTitle>Welcome back</CardTitle>
-                <CardDescription>Sign in to your account to continue</CardDescription>
-              </TabsContent>
-              
-              <TabsContent value="register">
-                <CardTitle>Create account</CardTitle>
-                <CardDescription>Join SkillZone and get 10 free tokens to start</CardDescription>
-              </TabsContent>
-            </Tabs>
-          </CardHeader>
-          
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLogin && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={formData.name}
-                      onChange={(e) => handleChange('name', e.target.value)}
-                      required={!isLogin}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="role">I am a...</Label>
-                    <Select value={formData.role} onValueChange={(value: 'client' | 'service_provider') => handleChange('role', value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select your role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="client">
-                          <div className="flex items-center">
-                            <ShoppingCart className="h-4 w-4 mr-2" />
-                            Client - I need services
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="service_provider">
-                          <div className="flex items-center">
-                            <Briefcase className="h-4 w-4 mr-2" />
-                            Service Provider - I offer services
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="country">Country</Label>
-                    <Select value={formData.country} onValueChange={(value) => handleChange('country', value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select your country" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SADC_COUNTRIES.map((country) => (
-                          <SelectItem key={country} value={country}>{country}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number (Optional)</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="Enter your phone number"
-                      value={formData.phone}
-                      onChange={(e) => handleChange('phone', e.target.value)}
-                    />
-                  </div>
-                </>
-              )}
-              
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+            <div>
+              <label className="block text-sm font-medium mb-2">Password</label>
+              <div className="relative">
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                  placeholder="Enter your password"
                   required
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
+            </div>
+
+            {showAdminLogin && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-medium text-orange-800">Admin Access</span>
+                </div>
+                <Input
+                  type="password"
+                  value={formData.adminKey}
+                  onChange={(e) => setFormData(prev => ({ ...prev, adminKey: e.target.value }))}
+                  placeholder="Enter admin key"
+                />
+                <p className="text-xs text-orange-600 mt-1">
+                  Leave empty to login as regular user
+                </p>
+              </div>
+            )}
+
+            {!isLogin && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Full Name</label>
                   <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={formData.password}
-                    onChange={(e) => handleChange('password', e.target.value)}
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Enter your full name"
                     required
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
                 </div>
-              </div>
-              
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isLogin ? 'Signing in...' : 'Creating account...'}
-                  </>
-                ) : (
-                  isLogin ? 'Sign In' : 'Create Account'
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Country</label>
+                  <Select value={formData.country} onValueChange={(value) => setFormData(prev => ({ ...prev, country: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SADC_COUNTRIES.map(country => (
+                        <SelectItem key={country} value={country}>{country}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Phone (Optional)</label>
+                  <Input
+                    value={formData.phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="Enter your phone number"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">I want to:</label>
+                  <Select value={formData.role} onValueChange={(value) => setFormData(prev => ({ ...prev, role: value as 'client' | 'service_provider' }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="client">Hire service providers</SelectItem>
+                      <SelectItem value="service_provider">Offer my services</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+            </Button>
+          </form>
+
+          <Separator className="my-6" />
+
+          <div className="text-center">
+            <p className="text-sm text-gray-600">
+              {isLogin ? "Don't have an account?" : "Already have an account?"}
+            </p>
+            <Button
+              variant="link"
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setFormData(prev => ({ ...prev, adminKey: '' }));
+                setShowAdminLogin(false);
+              }}
+              className="p-0 h-auto"
+            >
+              {isLogin ? 'Sign up' : 'Sign in'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
