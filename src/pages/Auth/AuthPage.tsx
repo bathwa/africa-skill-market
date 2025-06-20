@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore, SADC_COUNTRIES } from '@/stores/indexedDBAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
-import { Eye, EyeOff, Users, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, User, Briefcase, ShoppingCart } from 'lucide-react';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -21,6 +21,7 @@ const AuthPage = () => {
     name: '',
     country: 'Zimbabwe',
     phone: '',
+    role: 'client' as 'client' | 'service_provider',
   });
 
   const { login, register, isAuthenticated, isLoading } = useAuthStore();
@@ -82,7 +83,10 @@ const AuthPage = () => {
           return;
         }
 
-        const result = await register(formData);
+        const result = await register({
+          ...formData,
+          role: formData.role
+        });
         if (result.success) {
           toast({
             title: "Welcome to SkillZone!",
@@ -147,10 +151,6 @@ const AuthPage = () => {
               <TabsContent value="register">
                 <CardTitle>Create account</CardTitle>
                 <CardDescription>Join SkillZone and get 10 free tokens to start</CardDescription>
-                <div className="flex items-center text-sm text-orange-600 mt-2">
-                  <Users className="h-4 w-4 mr-1" />
-                  First 3 users automatically get admin access
-                </div>
               </TabsContent>
             </Tabs>
           </CardHeader>
@@ -169,6 +169,29 @@ const AuthPage = () => {
                       onChange={(e) => handleChange('name', e.target.value)}
                       required={!isLogin}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="role">I am a...</Label>
+                    <Select value={formData.role} onValueChange={(value: 'client' | 'service_provider') => handleChange('role', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="client">
+                          <div className="flex items-center">
+                            <ShoppingCart className="h-4 w-4 mr-2" />
+                            Client - I need services
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="service_provider">
+                          <div className="flex items-center">
+                            <Briefcase className="h-4 w-4 mr-2" />
+                            Service Provider - I offer services
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   <div className="space-y-2">

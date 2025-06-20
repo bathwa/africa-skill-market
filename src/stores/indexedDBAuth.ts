@@ -6,10 +6,13 @@ export interface Profile {
   id: string;
   email: string;
   name: string;
-  role: 'user' | 'admin' | 'super_admin';
+  role: 'user' | 'client' | 'service_provider' | 'admin' | 'super_admin';
   country: string;
   tokens: number;
   phone?: string;
+  experience_points?: number;
+  rating?: number;
+  total_ratings?: number;
   created_at: string;
   updated_at: string;
 }
@@ -26,7 +29,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (userData: { email: string; password: string; name: string; country: string; phone?: string }) => Promise<{ success: boolean; error?: string }>;
+  register: (userData: { email: string; password: string; name: string; country: string; phone?: string; role?: 'client' | 'service_provider' }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateProfile: (updates: Partial<Profile>) => Promise<{ success: boolean; error?: string }>;
   initialize: () => void;
@@ -43,6 +46,10 @@ export const SADC_COUNTRIES = [
   'Mozambique',
   'Malawi'
 ];
+
+// Token pricing
+export const TOKEN_PRICE_USD = 0.50;
+export const TOKEN_PRICE_ZAR = 10;
 
 // IndexedDB operations
 class AuthDB {
@@ -243,14 +250,23 @@ export const useAuthStore = create<AuthState>()(
             created_at: now,
           };
 
+          // Determine role based on registration type and admin count
+          let role: Profile['role'] = userData.role || 'user';
+          if (adminCount < 3 && !userData.role) {
+            role = 'admin';
+          }
+
           const profile: Profile = {
             id: userId,
             email: userData.email,
             name: userData.name,
             country: userData.country,
             phone: userData.phone,
-            role: adminCount < 3 ? 'admin' : 'user',
+            role: role,
             tokens: 10,
+            experience_points: role === 'service_provider' ? 0 : undefined,
+            rating: role === 'service_provider' ? 0 : undefined,
+            total_ratings: role === 'service_provider' ? 0 : undefined,
             created_at: now,
             updated_at: now,
           };
