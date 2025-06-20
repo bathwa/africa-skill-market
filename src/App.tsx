@@ -14,6 +14,8 @@ import AuthPage from "./pages/Auth/AuthPage";
 import Dashboard from "./pages/Dashboard";
 import ServiceProviders from "./pages/ServiceProviders";
 import Opportunities from "./pages/Opportunities";
+import CreateOpportunity from "./pages/Client/CreateOpportunity";
+import ManageOpportunities from "./pages/Client/ManageOpportunities";
 import AdminPanel from "./pages/Admin/AdminPanel";
 import NotFound from "./pages/NotFound";
 
