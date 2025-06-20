@@ -1,362 +1,296 @@
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import { useNavigate } from 'react-router-dom';
+import Layout from '@/components/Layout';
 import { useAuthStore } from '@/stores/indexedDBAuth';
 import { useOpportunityStore } from '@/stores/opportunityStore';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { X, Plus, Upload, FileText } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-
-const opportunitySchema = z.object({
-  title: z.string().min(1, 'Title is required').max(100, 'Title too long'),
-  description: z.string().min(10, 'Description must be at least 10 characters'),
-  budget: z.number().min(1, 'Budget must be greater than 0'),
-  currency: z.enum(['USD', 'ZAR']),
-  category: z.string().min(1, 'Category is required'),
-  skills_required: z.array(z.string()).min(1, 'At least one skill is required'),
-  client_phone: z.string().optional(),
-});
-
-type OpportunityFormData = z.infer<typeof opportunitySchema>;
-
-const CATEGORIES = [
-  'web-development',
-  'mobile-development', 
-  'design',
-  'writing',
-  'marketing',
-  'consulting',
-  'data-analysis',
-  'translation',
-  'other'
-];
-
-const COMMON_SKILLS = [
-  'JavaScript', 'React', 'Node.js', 'Python', 'PHP', 'HTML/CSS',
-  'Mobile Development', 'UI/UX Design', 'Graphic Design', 'Content Writing',
-  'SEO', 'Digital Marketing', 'Data Analysis', 'WordPress', 'E-commerce'
-];
+import { Upload, X, Plus } from 'lucide-react';
 
 const CreateOpportunity = () => {
   const { profile } = useAuthStore();
   const { createOpportunity } = useOpportunityStore();
   const navigate = useNavigate();
-  const [newSkill, setNewSkill] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  const form = useForm<OpportunityFormData>({
-    resolver: zodResolver(opportunitySchema),
-    defaultValues: {
-      title: '',
-      description: '',
-      budget: 0,
-      currency: 'USD',
-      category: '',
-      skills_required: [],
-      client_phone: '',
-    },
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    budget: 0,
+    currency: 'USD' as 'USD' | 'ZAR',
+    category: '',
+    skills_required: [] as string[],
+    client_phone: '',
+    files: [] as File[],
   });
 
-  const addSkill = (skill: string) => {
-    const currentSkills = form.getValues('skills_required');
-    if (skill && !currentSkills.includes(skill)) {
-      form.setValue('skills_required', [...currentSkills, skill]);
-    }
-    setNewSkill('');
-  };
-
-  const removeSkill = (skillToRemove: string) => {
-    const currentSkills = form.getValues('skills_required');
-    form.setValue('skills_required', currentSkills.filter(skill => skill !== skillToRemove));
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setSelectedFiles(prev => [...prev, ...files]);
-  };
-
-  const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const onSubmit = async (data: OpportunityFormData) => {
-    if (!profile) return;
-
-    const opportunityData = {
-      ...data,
-      client_id: profile.id,
-      client_name: profile.name,
-      client_country: profile.country,
-      client_email: profile.email,
-      files: selectedFiles,
-    };
-
-    const result = await createOpportunity(opportunityData);
-    
-    if (result.success) {
-      toast({
-        title: "Opportunity created",
-        description: "Your opportunity has been posted successfully.",
-      });
-      navigate('/dashboard');
-    } else {
-      toast({
-        title: "Error",
-        description: result.error,
-        variant: "destructive",
-      });
-    }
-  };
+  const [newSkill, setNewSkill] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!profile || profile.role !== 'client') {
     return (
-      <div className="text-center py-12">
-        <p>Access denied. Only clients can create opportunities.</p>
-      </div>
+      <Layout>
+        <div className="text-center py-12">
+          <p>Access denied. Only clients can create opportunities.</p>
+        </div>
+      </Layout>
     );
   }
 
+  const categories = [
+    'web-development',
+    'mobile-development', 
+    'design',
+    'writing',
+    'marketing',
+    'consulting',
+    'other'
+  ];
+
+  const handleAddSkill = () => {
+    if (newSkill.trim() && !formData.skills_required.includes(newSkill.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        skills_required: [...prev.skills_required, newSkill.trim()]
+      }));
+      setNewSkill('');
+    }
+  };
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      skills_required: prev.skills_required.filter(skill => skill !== skillToRemove)
+    }));
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setFormData(prev => ({
+      ...prev,
+      files: [...prev.files, ...files]
+    }));
+  };
+
+  const handleRemoveFile = (fileToRemove: File) => {
+    setFormData(prev => ({
+      ...prev,
+      files: prev.files.filter(file => file !== fileToRemove)
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.title || !formData.description || formData.budget <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const opportunityData = {
+        title: formData.title,
+        description: formData.description,
+        client_id: profile.id,
+        client_name: profile.name,
+        client_country: profile.country,
+        client_email: profile.email,
+        client_phone: formData.client_phone,
+        budget: formData.budget,
+        currency: formData.currency,
+        category: formData.category,
+        skills_required: formData.skills_required,
+        files: formData.files,
+      };
+
+      const result = await createOpportunity(opportunityData);
+
+      if (result.success) {
+        toast({
+          title: "Opportunity Created",
+          description: "Your opportunity has been posted successfully!",
+        });
+        navigate('/client/manage');
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to create opportunity",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Create New Opportunity</CardTitle>
-          <CardDescription>
-            Post a new project opportunity for service providers in {profile.country}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Project Title</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter project title..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+    <Layout>
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Create New Opportunity</h1>
+          <p className="text-gray-600 mt-2">Post a project and connect with service providers</p>
+        </div>
 
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Project Description</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Describe your project requirements in detail..."
-                        className="min-h-32"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Provide detailed requirements, timeline, and any specific deliverables
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="budget"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Budget</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="0"
-                          {...field}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="currency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Currency</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select currency" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="USD">USD</SelectItem>
-                          <SelectItem value="ZAR">ZAR</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {CATEGORIES.map(category => (
-                          <SelectItem key={category} value={category}>
-                            {category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="client_phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Your contact number..." {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Service providers will see this after purchasing access
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="skills_required"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Required Skills</FormLabel>
-                    <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add skill..."
-                          value={newSkill}
-                          onChange={(e) => setNewSkill(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              addSkill(newSkill);
-                            }
-                          }}
-                        />
-                        <Button 
-                          type="button" 
-                          onClick={() => addSkill(newSkill)}
-                          size="sm"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-2">
-                        {COMMON_SKILLS.map(skill => (
-                          <Button
-                            key={skill}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addSkill(skill)}
-                          >
-                            {skill}
-                          </Button>
-                        ))}
-                      </div>
-
-                      {field.value.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {field.value.map(skill => (
-                            <Badge key={skill} variant="default" className="flex items-center gap-1">
-                              {skill}
-                              <X 
-                                className="h-3 w-3 cursor-pointer" 
-                                onClick={() => removeSkill(skill)}
-                              />
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="space-y-4">
-                <label className="text-sm font-medium">Project Files (Optional)</label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
-                  <div className="text-center">
-                    <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                    <div className="mt-4">
-                      <label htmlFor="file-upload" className="cursor-pointer">
-                        <span className="mt-2 block text-sm font-medium text-gray-900">
-                          Upload project files
-                        </span>
-                        <input
-                          id="file-upload"
-                          name="file-upload"
-                          type="file"
-                          multiple
-                          className="sr-only"
-                          onChange={handleFileChange}
-                        />
-                      </label>
-                      <p className="mt-1 text-xs text-gray-500">
-                        Images, documents, or any relevant files
-                      </p>
-                    </div>
-                  </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Project Details</CardTitle>
+            <CardDescription>
+              Provide detailed information about your project to attract the right service providers
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2">Project Title *</label>
+                  <Input
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Brief, descriptive title for your project"
+                    required
+                  />
                 </div>
 
-                {selectedFiles.length > 0 && (
-                  <div className="space-y-2">
-                    {selectedFiles.map((file, index) => (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2">Project Description *</label>
+                  <Textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Detailed description of what you need done..."
+                    rows={6}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Budget *</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={formData.budget}
+                    onChange={(e) => setFormData(prev => ({ ...prev, budget: Number(e.target.value) }))}
+                    placeholder="Project budget"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Currency</label>
+                  <Select 
+                    value={formData.currency} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, currency: value as 'USD' | 'ZAR' }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD ($)</SelectItem>
+                      <SelectItem value="ZAR">ZAR (R)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Category</label>
+                  <Select 
+                    value={formData.category} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(category => (
+                        <SelectItem key={category} value={category}>
+                          {category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Contact Phone</label>
+                  <Input
+                    value={formData.client_phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, client_phone: e.target.value }))}
+                    placeholder="Your contact number"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Required Skills</label>
+                <div className="flex gap-2 mb-3">
+                  <Input
+                    value={newSkill}
+                    onChange={(e) => setNewSkill(e.target.value)}
+                    placeholder="Add a required skill"
+                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())}
+                  />
+                  <Button type="button" onClick={handleAddSkill} size="sm">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {formData.skills_required.map((skill, index) => (
+                    <Badge key={index} variant="secondary" className="cursor-pointer">
+                      {skill}
+                      <X 
+                        className="h-3 w-3 ml-1" 
+                        onClick={() => handleRemoveSkill(skill)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Project Files</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <p className="text-gray-600 mb-2">Upload project files, requirements, or references</p>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="file-upload"
+                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                  />
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <Button type="button" variant="outline" size="sm">
+                      Choose Files
+                    </Button>
+                  </label>
+                </div>
+                {formData.files.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {formData.files.map((file, index) => (
                       <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          <span className="text-sm">{file.name}</span>
-                        </div>
+                        <span className="text-sm">{file.name}</span>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => removeFile(index)}
+                          onClick={() => handleRemoveFile(file)}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -366,23 +300,23 @@ const CreateOpportunity = () => {
                 )}
               </div>
 
-              <div className="flex gap-4">
-                <Button type="submit" className="flex-1">
-                  Create Opportunity
+              <div className="flex gap-4 pt-6">
+                <Button type="submit" disabled={isSubmitting} className="flex-1">
+                  {isSubmitting ? 'Creating...' : 'Create Opportunity'}
                 </Button>
                 <Button 
                   type="button" 
                   variant="outline" 
-                  onClick={() => navigate('/dashboard')}
+                  onClick={() => navigate('/client/manage')}
                 >
                   Cancel
                 </Button>
               </div>
             </form>
-          </Form>
-        </CardContent>
-      </Card>
-    </div>
+          </CardContent>
+        </Card>
+      </div>
+    </Layout>
   );
 };
 

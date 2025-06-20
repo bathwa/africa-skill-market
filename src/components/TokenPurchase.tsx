@@ -1,343 +1,307 @@
 
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useAuthStore } from '@/stores/indexedDBAuth';
+import { useTokenStore } from '@/stores/tokenStore';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { useAuthStore } from '@/stores/indexedDBAuth';
-import { useTokenStore, TOKEN_PRICE_USD, TOKEN_PRICE_ZAR } from '@/stores/tokenStore';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Coins, Copy, Upload, CreditCard } from 'lucide-react';
+import { Coins, Upload, Copy, CreditCard } from 'lucide-react';
 
 interface TokenPurchaseProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
-const TokenPurchase: React.FC<TokenPurchaseProps> = ({ children }) => {
+const TokenPurchase = ({ children }: TokenPurchaseProps) => {
   const { profile } = useAuthStore();
-  const { createPurchase, submitProofOfPayment } = useTokenStore();
+  const { createPurchaseRequest } = useTokenStore();
   
-  const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState<'amount' | 'voucher' | 'proof'>('amount');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState<'USD' | 'ZAR'>('USD');
-  const [voucherDetails, setVoucherDetails] = useState<any>(null);
-  const [purchaseId, setPurchaseId] = useState<string>('');
-  const [proofType, setProofType] = useState<'text' | 'image' | 'pdf'>('text');
-  const [proofContent, setProofContent] = useState('');
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [amount, setAmount] = useState(10);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState<any>(null);
+  const [proofOfPayment, setProofOfPayment] = useState('');
 
-  const tokenPrice = currency === 'USD' ? TOKEN_PRICE_USD : TOKEN_PRICE_ZAR;
-  const calculatedTokens = Math.floor(parseFloat(amount || '0') / tokenPrice);
+  if (!profile) return null;
 
-  const handleCreatePurchase = async () => {
-    if (!profile || !amount) return;
+  const calculateCost = (tokens: number) => {
+    const costUSD = tokens * 0.5;
+    const costZAR = tokens * 10;
+    return { usd: costUSD, zar: costZAR };
+  };
 
-    setIsLoading(true);
+  const handlePurchaseRequest = async () => {
+    if (amount < 1) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid token amount (minimum 1).",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
-      const result = await createPurchase(profile.id, parseFloat(amount), currency);
-      if (result.success && result.voucher) {
-        setVoucherDetails(result.voucher);
-        // Find the purchase ID (we'd need to modify the store to return it)
-        setStep('voucher');
+      const cost = calculateCost(amount);
+      const currency = profile.country === 'South Africa' ? 'ZAR' : 'USD';
+      const totalCost = currency === 'ZAR' ? cost.zar : cost.usd;
+
+      const result = await createPurchaseRequest({
+        user_id: profile.id,
+        tokens_requested: amount,
+        amount_paid: totalCost,
+        currency,
+        status: 'pending',
+      });
+
+      if (result.success) {
+        setPaymentDetails({
+          id: result.data?.id,
+          tokens: amount,
+          cost: totalCost,
+          currency,
+          bankDetails: currency === 'ZAR' ? {
+            bank: 'First National Bank',
+            accountName: 'SkillZone Platform',
+            accountNumber: '1234567890',
+            branchCode: '250655',
+            reference: `TOKEN-${result.data?.id}`
+          } : {
+            bank: 'Wells Fargo',
+            accountName: 'SkillZone Platform LLC',
+            accountNumber: '0987654321',
+            routingNumber: '121000248',
+            reference: `TOKEN-${result.data?.id}`
+          }
+        });
+        setShowPaymentDetails(true);
+        
+        toast({
+          title: "Purchase Request Created",
+          description: "Please complete the payment using the provided details.",
+        });
       } else {
         toast({
-          title: "Purchase failed",
-          description: result.error,
+          title: "Error",
+          description: result.error || "Failed to create purchase request",
           variant: "destructive"
         });
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create purchase",
+        description: "An unexpected error occurred",
         variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCopyDetails = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "Copied",
-      description: "Payment details copied to clipboard"
-    });
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setProofFile(file);
-      // Convert to base64
-      const reader = new FileReader();
-      reader.onload = () => {
-        setProofContent(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setIsSubmitting(false);
     }
   };
 
   const handleSubmitProof = async () => {
-    if (!purchaseId) return;
-
-    setIsLoading(true);
-    try {
-      const proof = {
-        type: proofType,
-        content: proofContent,
-        filename: proofFile?.name,
-      };
-
-      const result = await submitProofOfPayment(purchaseId, proof);
-      if (result.success) {
-        toast({
-          title: "Proof submitted",
-          description: "Your proof of payment has been submitted for review"
-        });
-        setIsOpen(false);
-        resetForm();
-      } else {
-        toast({
-          title: "Submission failed",
-          description: result.error,
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
+    if (!proofOfPayment.trim()) {
       toast({
-        title: "Error",
-        description: "Failed to submit proof",
+        title: "Missing Proof",
+        description: "Please provide proof of payment.",
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
+      return;
     }
+
+    // Here you would typically upload the proof and update the purchase request
+    toast({
+      title: "Proof Submitted",
+      description: "Your proof of payment has been submitted for review.",
+    });
+    
+    setIsDialogOpen(false);
+    setShowPaymentDetails(false);
+    setProofOfPayment('');
+    setAmount(10);
   };
 
-  const resetForm = () => {
-    setStep('amount');
-    setAmount('');
-    setCurrency('USD');
-    setVoucherDetails(null);
-    setPurchaseId('');
-    setProofType('text');
-    setProofContent('');
-    setProofFile(null);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied",
+      description: "Details copied to clipboard",
+    });
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild onClick={() => setIsOpen(true)}>
-        {children}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Coins className="h-5 w-5" />
-            Purchase Tokens
-          </DialogTitle>
-          <DialogDescription>
-            {step === 'amount' && 'Enter the amount you want to spend'}
-            {step === 'voucher' && 'Use these details to make your payment'}
-            {step === 'proof' && 'Upload your proof of payment'}
-          </DialogDescription>
-        </DialogHeader>
-
-        {step === 'amount' && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="currency">Currency</Label>
-              <Select value={currency} onValueChange={(value: 'USD' | 'ZAR') => setCurrency(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USD">USD ($0.50 per token)</SelectItem>
-                  <SelectItem value="ZAR">ZAR (R10 per token)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount ({currency})</Label>
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder={`Enter amount in ${currency}`}
-              />
-            </div>
-
-            {amount && (
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">You will receive</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {calculatedTokens} tokens
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {currency} {parseFloat(amount).toFixed(2)} ÷ {currency} {tokenPrice} = {calculatedTokens} tokens
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <Button 
-              onClick={handleCreatePurchase} 
-              className="w-full"
-              disabled={!amount || calculatedTokens === 0 || isLoading}
-            >
-              {isLoading ? 'Creating...' : 'Create Purchase'}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Coins className="h-5 w-5 text-yellow-600" />
+          <span className="font-medium">Current Balance: {profile.tokens} tokens</span>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Purchase Tokens
             </Button>
-          </div>
-        )}
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Purchase Tokens</DialogTitle>
+              <DialogDescription>
+                Tokens are used to access opportunities and services. Each token costs $0.50 (USD) or R10 (ZAR).
+              </DialogDescription>
+            </DialogHeader>
 
-        {step === 'voucher' && voucherDetails && (
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Payment Details</CardTitle>
-                <CardDescription>Use these details to make your payment</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Bank:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">{voucherDetails.bank_name}</span>
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      onClick={() => handleCopyDetails(voucherDetails.bank_name)}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
+            {!showPaymentDetails ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Number of Tokens</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={amount}
+                    onChange={(e) => setAmount(Number(e.target.value))}
+                    placeholder="Enter number of tokens"
+                  />
                 </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Account:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono">{voucherDetails.account_number}</span>
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      onClick={() => handleCopyDetails(voucherDetails.account_number)}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Reference:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono text-blue-600">{voucherDetails.reference}</span>
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      onClick={() => handleCopyDetails(voucherDetails.reference)}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="flex justify-between items-center pt-2 border-t">
-                  <span className="text-sm font-medium">Amount:</span>
-                  <span className="text-lg font-bold">
-                    {voucherDetails.currency} {voucherDetails.amount}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
 
-            <div className="text-xs text-gray-600 space-y-1">
-              <p>• Make the payment using your banking app or wallet</p>
-              <p>• Use the exact reference number provided</p>
-              <p>• Keep your proof of payment ready</p>
-            </div>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-center">
+                      <span>Total Cost:</span>
+                      <div className="text-right">
+                        <div className="font-bold">
+                          ${calculateCost(amount).usd} USD
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          R{calculateCost(amount).zar} ZAR
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <Button onClick={() => setStep('proof')} className="w-full">
-              I've Made Payment
-            </Button>
-          </div>
-        )}
-
-        {step === 'proof' && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="proofType">Proof Type</Label>
-              <Select value={proofType} onValueChange={(value: 'text' | 'image' | 'pdf') => setProofType(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="text">Text (Transaction ID/Reference)</SelectItem>
-                  <SelectItem value="image">Image (Screenshot)</SelectItem>
-                  <SelectItem value="pdf">PDF (Bank Statement)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {proofType === 'text' ? (
-              <div className="space-y-2">
-                <Label htmlFor="proofText">Transaction Details</Label>
-                <Textarea
-                  id="proofText"
-                  value={proofContent}
-                  onChange={(e) => setProofContent(e.target.value)}
-                  placeholder="Enter transaction ID, reference number, or other payment details..."
-                  rows={4}
-                />
+                <Button 
+                  onClick={handlePurchaseRequest} 
+                  disabled={isSubmitting}
+                  className="w-full"
+                >
+                  {isSubmitting ? 'Processing...' : 'Generate Payment Details'}
+                </Button>
               </div>
             ) : (
-              <div className="space-y-2">
-                <Label htmlFor="proofFile">Upload File</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                  <input
-                    id="proofFile"
-                    type="file"
-                    accept={proofType === 'image' ? 'image/*' : '.pdf'}
-                    onChange={handleFileUpload}
-                    className="hidden"
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Payment Details</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Bank:</label>
+                        <p className="font-medium">{paymentDetails.bankDetails.bank}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Account Name:</label>
+                        <p className="font-medium">{paymentDetails.bankDetails.accountName}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Account Number:</label>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{paymentDetails.bankDetails.accountNumber}</p>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(paymentDetails.bankDetails.accountNumber)}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">
+                          {paymentDetails.currency === 'ZAR' ? 'Branch Code:' : 'Routing Number:'}
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">
+                            {paymentDetails.currency === 'ZAR' 
+                              ? paymentDetails.bankDetails.branchCode 
+                              : paymentDetails.bankDetails.routingNumber}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(
+                              paymentDetails.currency === 'ZAR' 
+                                ? paymentDetails.bankDetails.branchCode 
+                                : paymentDetails.bankDetails.routingNumber
+                            )}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-sm font-medium text-gray-600">Reference:</label>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-blue-600">{paymentDetails.bankDetails.reference}</p>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(paymentDetails.bankDetails.reference)}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="col-span-2 p-3 bg-yellow-50 rounded-lg">
+                        <p className="text-lg font-bold text-center">
+                          Amount to Pay: {paymentDetails.currency} {paymentDetails.cost}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Proof of Payment</label>
+                  <Textarea
+                    value={proofOfPayment}
+                    onChange={(e) => setProofOfPayment(e.target.value)}
+                    placeholder="Paste transaction details, upload receipt text, or describe your payment..."
+                    rows={4}
                   />
-                  <label htmlFor="proofFile" className="cursor-pointer">
-                    <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">
-                      Click to upload {proofType === 'image' ? 'an image' : 'a PDF'}
-                    </p>
-                    {proofFile && (
-                      <p className="text-xs text-blue-600 mt-2">
-                        Selected: {proofFile.name}
-                      </p>
-                    )}
-                  </label>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Include transaction reference, date, and amount. You can also upload a screenshot as text or PDF details.
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleSubmitProof} className="flex-1">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Submit Proof
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowPaymentDetails(false)}>
+                    Back
+                  </Button>
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+      </div>
 
-            <Button 
-              onClick={handleSubmitProof} 
-              className="w-full"
-              disabled={!proofContent || isLoading}
-            >
-              {isLoading ? 'Submitting...' : 'Submit Proof'}
-            </Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+      <div className="text-sm text-gray-600">
+        <p>• 1 token = $0.50 USD or R10 ZAR</p>
+        <p>• Viewing client contact details costs 1 token</p>
+        <p>• New users receive 10 free tokens</p>
+      </div>
+
+      {children}
+    </div>
   );
 };
 

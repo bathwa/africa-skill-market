@@ -16,6 +16,7 @@ import ServiceProviders from "./pages/ServiceProviders";
 import Opportunities from "./pages/Opportunities";
 import CreateOpportunity from "./pages/Client/CreateOpportunity";
 import ManageOpportunities from "./pages/Client/ManageOpportunities";
+import CreateProvider from "./pages/Provider/CreateProvider";
 import AdminPanel from "./pages/Admin/AdminPanel";
 import NotFound from "./pages/NotFound";
 
@@ -94,6 +95,9 @@ const App = () => {
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/providers" element={<ProtectedRoute><ServiceProviders /></ProtectedRoute>} />
             <Route path="/opportunities" element={<ProtectedRoute><Opportunities /></ProtectedRoute>} />
+            <Route path="/client/create" element={<ProtectedRoute><CreateOpportunity /></ProtectedRoute>} />
+            <Route path="/client/manage" element={<ProtectedRoute><ManageOpportunities /></ProtectedRoute>} />
+            <Route path="/provider/create" element={<ProtectedRoute><CreateProvider /></ProtectedRoute>} />
             <Route path="/admin/*" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

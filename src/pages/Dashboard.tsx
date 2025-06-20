@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -38,13 +39,14 @@ const Dashboard = () => {
       case 'client':
         return [
           { title: 'Create Opportunity', description: 'Post a new project', href: '/client/create', icon: '📝' },
-          { title: '管理 Opportunities', description: 'View and manage your projects', href: '/client/manage', icon: '📊' },
+          { title: 'Manage Opportunities', description: 'View and manage your projects', href: '/client/manage', icon: '📊' },
           { title: 'Service Providers', description: 'Browse service providers', href: '/providers', icon: '👥' },
         ];
       case 'service_provider':
         return [
           { title: 'Browse Opportunities', description: 'Find new projects', href: '/opportunities', icon: '🔍' },
           { title: 'Service Providers', description: 'View other providers', href: '/providers', icon: '👥' },
+          { title: 'Create Profile', description: 'Set up your professional profile', href: '/provider/create', icon: '👤' },
         ];
       case 'admin':
       case 'super_admin':
