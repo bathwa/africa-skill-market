@@ -1,8 +1,5 @@
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
 
 export interface Profile {
   id: string;
@@ -17,9 +14,9 @@ export interface Profile {
 }
 
 interface AuthState {
-  user: User | null;
+  user: any | null;
   profile: Profile | null;
-  session: Session | null;
+  session: any | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -53,224 +50,42 @@ export const useAuthStore = create<AuthState>()(
       isLoading: true,
 
       initialize: async () => {
-        try {
-          set({ isLoading: true });
-          
-          // Get initial session
-          const { data: { session }, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('Error getting session:', error);
-            set({ isLoading: false });
-            return;
-          }
-
-          if (session?.user) {
-            set({ 
-              user: session.user, 
-              session, 
-              isAuthenticated: true 
-            });
-            
-            // Load profile after setting user
-            await get().loadProfile();
-          }
-          
-          set({ isLoading: false });
-        } catch (error) {
-          console.error('Initialize error:', error);
-          set({ isLoading: false });
-        }
+        set({ isLoading: false });
       },
 
       login: async (email: string, password: string) => {
-        try {
-          set({ isLoading: true });
-          
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-
-          if (error) {
-            set({ isLoading: false });
-            return { success: false, error: error.message };
-          }
-
-          if (data.user && data.session) {
-            set({ 
-              user: data.user, 
-              session: data.session, 
-              isAuthenticated: true 
-            });
-            
-            // Load profile
-            await get().loadProfile();
-            set({ isLoading: false });
-            return { success: true };
-          }
-
-          set({ isLoading: false });
-          return { success: false, error: 'Login failed' };
-        } catch (error) {
-          console.error('Login error:', error);
-          set({ isLoading: false });
-          return { success: false, error: 'An unexpected error occurred' };
-        }
+        // Deprecated - redirect to indexedDBAuth
+        return { success: false, error: 'Use indexedDBAuth instead' };
       },
 
       register: async (userData) => {
-        try {
-          set({ isLoading: true });
-          
-          const { data, error } = await supabase.auth.signUp({
-            email: userData.email,
-            password: userData.password,
-            options: {
-              data: {
-                name: userData.name,
-                country: userData.country,
-                phone: userData.phone,
-              }
-            }
-          });
-
-          if (error) {
-            set({ isLoading: false });
-            return { success: false, error: error.message };
-          }
-
-          if (data.user) {
-            // For email confirmation disabled, user will be automatically signed in
-            if (data.session) {
-              set({ 
-                user: data.user, 
-                session: data.session, 
-                isAuthenticated: true 
-              });
-              await get().loadProfile();
-            } else {
-              // Email confirmation enabled - user needs to verify email
-              set({ 
-                user: data.user, 
-                session: null, 
-                isAuthenticated: false 
-              });
-            }
-            
-            set({ isLoading: false });
-            return { success: true };
-          }
-
-          set({ isLoading: false });
-          return { success: false, error: 'Registration failed' };
-        } catch (error) {
-          console.error('Registration error:', error);
-          set({ isLoading: false });
-          return { success: false, error: 'An unexpected error occurred' };
-        }
+        // Deprecated - redirect to indexedDBAuth
+        return { success: false, error: 'Use indexedDBAuth instead' };
       },
 
       logout: async () => {
-        try {
-          await supabase.auth.signOut();
-          set({ 
-            user: null, 
-            profile: null, 
-            session: null, 
-            isAuthenticated: false 
-          });
-        } catch (error) {
-          console.error('Logout error:', error);
-        }
+        set({ 
+          user: null, 
+          profile: null, 
+          session: null, 
+          isAuthenticated: false 
+        });
       },
 
       updateProfile: async (updates) => {
-        try {
-          const { profile } = get();
-          if (!profile) return { success: false, error: 'No profile found' };
-
-          const { data, error } = await supabase
-            .from('profiles')
-            .update(updates)
-            .eq('id', profile.id)
-            .select()
-            .single();
-
-          if (error) {
-            return { success: false, error: error.message };
-          }
-
-          set({ profile: data });
-          return { success: true };
-        } catch (error) {
-          console.error('Update profile error:', error);
-          return { success: false, error: 'An unexpected error occurred' };
-        }
+        return { success: false, error: 'Use indexedDBAuth instead' };
       },
 
       loadProfile: async () => {
-        try {
-          const { user } = get();
-          if (!user) return;
-
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .maybeSingle();
-
-          if (error) {
-            console.error('Load profile error:', error);
-            return;
-          }
-
-          if (data) {
-            set({ profile: data });
-          } else {
-            // Profile doesn't exist, create it
-            console.log('Profile not found, creating...');
-            await get().createProfile();
-          }
-        } catch (error) {
-          console.error('Load profile error:', error);
-        }
+        // Deprecated
       },
 
       createProfile: async () => {
-        try {
-          const { user } = get();
-          if (!user) return;
-
-          const profileData = {
-            id: user.id,
-            email: user.email || '',
-            name: user.user_metadata?.name || user.email || 'User',
-            country: user.user_metadata?.country || 'Zimbabwe',
-            phone: user.user_metadata?.phone,
-            role: 'user' as const,
-            tokens: 10
-          };
-
-          const { data, error } = await supabase
-            .from('profiles')
-            .insert(profileData)
-            .select()
-            .single();
-
-          if (error) {
-            console.error('Create profile error:', error);
-            return;
-          }
-
-          set({ profile: data });
-        } catch (error) {
-          console.error('Create profile error:', error);
-        }
+        // Deprecated
       }
     }),
     {
-      name: 'skillzone-auth',
+      name: 'skillzone-auth-deprecated',
       partialize: (state) => ({
         user: state.user,
         profile: state.profile,
@@ -280,38 +95,3 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
-
-// Initialize auth state on app load with proper error handling
-let authInitialized = false;
-
-supabase.auth.onAuthStateChange(async (event, session) => {
-  console.log('Auth state change:', event, session?.user?.id || 'no user');
-  
-  const store = useAuthStore.getState();
-  
-  if (session?.user) {
-    useAuthStore.setState({ 
-      user: session.user, 
-      session, 
-      isAuthenticated: true 
-    });
-    
-    // Load profile in next tick to avoid recursion
-    setTimeout(async () => {
-      await store.loadProfile();
-    }, 0);
-  } else {
-    useAuthStore.setState({ 
-      user: null, 
-      profile: null, 
-      session: null, 
-      isAuthenticated: false 
-    });
-  }
-  
-  // Initialize on first auth state change
-  if (!authInitialized) {
-    authInitialized = true;
-    useAuthStore.setState({ isLoading: false });
-  }
-});
