@@ -7,6 +7,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
 import { useAuthStore } from "@/stores/indexedDBAuth";
 import { Loader2 } from "lucide-react";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import OfflineIndicator from "@/components/OfflineIndicator";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 
 // Pages
 import Home from "./pages/Home";
@@ -20,7 +23,32 @@ import CreateProvider from "./pages/Provider/CreateProvider";
 import AdminPanel from "./pages/Admin/AdminPanel";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Configure React Query for offline-first behavior
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+      retry: (failureCount, error: any) => {
+        // Don't retry on 4xx errors (client errors)
+        if (error?.status >= 400 && error?.status < 500) {
+          return false;
+        }
+        // Retry up to 3 times for other errors
+        return failureCount < 3;
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000),
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+    },
+    mutations: {
+      retry: (failureCount, error: any) => {
+        // Don't retry mutations by default for data consistency
+        return false;
+      },
+    },
+  },
+});
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -64,6 +92,16 @@ const App = () => {
   useEffect(() => {
     // Initialize auth state
     initialize();
+    
+    // Initialize PWA update check
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        // Check for updates every 5 minutes
+        setInterval(() => {
+          registration.update();
+        }, 5 * 60 * 1000);
+      });
+    }
   }, [initialize]);
 
   if (isLoading) {
@@ -73,7 +111,7 @@ const App = () => {
           <div className="min-h-screen flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-              <p>Initializing...</p>
+              <p>Initializing SkillZone...</p>
             </div>
           </div>
         </TooltipProvider>
@@ -82,28 +120,34 @@ const App = () => {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
-            <Route path="/login" element={<Navigate to="/auth" replace />} />
-            <Route path="/register" element={<Navigate to="/auth" replace />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/providers" element={<ProtectedRoute><ServiceProviders /></ProtectedRoute>} />
-            <Route path="/opportunities" element={<ProtectedRoute><Opportunities /></ProtectedRoute>} />
-            <Route path="/client/create" element={<ProtectedRoute><CreateOpportunity /></ProtectedRoute>} />
-            <Route path="/client/manage" element={<ProtectedRoute><ManageOpportunities /></ProtectedRoute>} />
-            <Route path="/provider/create" element={<ProtectedRoute><CreateProvider /></ProtectedRoute>} />
-            <Route path="/admin/*" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
+              <Route path="/login" element={<Navigate to="/auth" replace />} />
+              <Route path="/register" element={<Navigate to="/auth" replace />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/providers" element={<ProtectedRoute><ServiceProviders /></ProtectedRoute>} />
+              <Route path="/opportunities" element={<ProtectedRoute><Opportunities /></ProtectedRoute>} />
+              <Route path="/client/create" element={<ProtectedRoute><CreateOpportunity /></ProtectedRoute>} />
+              <Route path="/client/manage" element={<ProtectedRoute><ManageOpportunities /></ProtectedRoute>} />
+              <Route path="/provider/create" element={<ProtectedRoute><CreateProvider /></ProtectedRoute>} />
+              <Route path="/admin/*" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            
+            {/* Global Components */}
+            <OfflineIndicator />
+            <PWAInstallBanner />
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 
