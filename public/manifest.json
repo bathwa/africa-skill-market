@@ -1,0 +1,28 @@
+
+{
+  "name": "SkillZone - SADC Skills Marketplace",
+  "short_name": "SkillZone",
+  "description": "Connect with skilled professionals across the SADC region",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/lovable-uploads/66e50579-9d23-4c55-a7d5-b7ecbf89cccd.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/lovable-uploads/66e50579-9d23-4c55-a7d5-b7ecbf89cccd.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "social"],
+  "lang": "en",
+  "dir": "ltr"
+}

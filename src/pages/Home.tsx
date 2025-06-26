@@ -4,13 +4,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/indexedDBAuth';
 import { useOpportunityStore } from '@/stores/opportunityStore';
 import { useProviderStore } from '@/stores/providerStore';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Search, MapPin, DollarSign, Star, Users, Briefcase, Shield } from 'lucide-react';
+import { Shield, Users, Briefcase, Star, ArrowRight } from 'lucide-react';
 import Header from '@/components/Header';
+import VisitorSearch from '@/components/VisitorSearch';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 const Home = () => {
   const { profile } = useAuthStore();
@@ -18,61 +16,22 @@ const Home = () => {
   const { profiles, loadProfiles } = useProviderStore();
   const navigate = useNavigate();
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('all');
-  const [selectedSkill, setSelectedSkill] = useState('all');
-  const [searchType, setSearchType] = useState<'opportunities' | 'providers'>('opportunities');
-
   useEffect(() => {
     loadOpportunities();
     loadProfiles();
   }, [loadOpportunities, loadProfiles]);
 
-  const skillOptions = [
-    'Welding', 'Painting', 'Building & Construction', 'Plumbing', 'Electrical',
-    'Home Helper', 'Gardener', 'HVAC Tech', 'Mechanic', 'Auto Electrician',
-    'Web Development', 'Mobile Development', 'Design', 'Writing', 'Marketing',
-    'Consulting', 'Photography', 'Catering', 'Cleaning Services', 'Tutoring'
-  ];
-
-  const locations = [
-    'Zimbabwe', 'South Africa', 'Botswana', 'Zambia', 'Namibia', 
-    'Angola', 'Mozambique', 'Malawi'
-  ];
-
-  const filteredOpportunities = opportunities.filter(opp => {
-    const matchesSearch = opp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         opp.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLocation = selectedLocation === 'all' || opp.client_country === selectedLocation;
-    const matchesSkill = selectedSkill === 'all' || 
-                        opp.skills_required.some(skill => skill.toLowerCase().includes(selectedSkill.toLowerCase()));
-    return matchesSearch && matchesLocation && matchesSkill;
-  }).slice(0, 6);
-
-  const filteredProviders = profiles.filter(provider => {
-    const matchesSearch = provider.business_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         provider.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLocation = selectedLocation === 'all' || provider.country === selectedLocation;
-    const matchesSkill = selectedSkill === 'all' || 
-                        provider.skills.some(skill => skill.toLowerCase().includes(selectedSkill.toLowerCase()));
-    return matchesSearch && matchesLocation && matchesSkill;
-  }).slice(0, 6);
-
-  const handleSearch = () => {
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
     if (profile) {
-      if (searchType === 'opportunities') {
-        navigate('/opportunities');
-      } else {
-        navigate('/providers');
-      }
-    } else {
-      navigate('/auth');
+      navigate('/dashboard');
     }
-  };
+  }, [profile, navigate]);
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
+      <PWAInstallPrompt />
       
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
@@ -86,64 +45,18 @@ const Home = () => {
               Find the perfect match for your project or showcase your expertise to potential clients.
             </p>
             
-            {/* Search Section */}
-            <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto">
-              <div className="flex flex-col md:flex-row gap-4 mb-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                    <Input
-                      placeholder={`Search for ${searchType === 'opportunities' ? 'opportunities' : 'service providers'}...`}
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                  <SelectTrigger className="w-full md:w-48">
-                    <SelectValue placeholder="All Locations" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Locations</SelectItem>
-                    {locations.map(location => (
-                      <SelectItem key={location} value={location}>{location}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={selectedSkill} onValueChange={setSelectedSkill}>
-                  <SelectTrigger className="w-full md:w-48">
-                    <SelectValue placeholder="All Skills" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Skills</SelectItem>
-                    {skillOptions.map(skill => (
-                      <SelectItem key={skill} value={skill}>{skill}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="flex gap-4 items-center">
-                <div className="flex gap-2">
-                  <Button
-                    variant={searchType === 'opportunities' ? 'default' : 'outline'}
-                    onClick={() => setSearchType('opportunities')}
-                  >
-                    Find Work
-                  </Button>
-                  <Button
-                    variant={searchType === 'providers' ? 'default' : 'outline'}
-                    onClick={() => setSearchType('providers')}
-                  >
-                    Hire Talent
-                  </Button>
-                </div>
-                <Button onClick={handleSearch} className="flex-1 md:flex-none">
-                  <Search className="h-4 w-4 mr-2" />
-                  Search
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+              <Link to="/auth">
+                <Button size="lg" className="px-8">
+                  Get Started Today
+                  <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
-              </div>
+              </Link>
+              <Button size="lg" variant="outline" onClick={() => {
+                document.getElementById('search-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}>
+                Browse Opportunities
+              </Button>
             </div>
           </div>
         </div>
@@ -193,111 +106,81 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Recent Opportunities */}
-      <section className="py-16 bg-gray-50">
+      {/* Visitor Search Section */}
+      <section id="search-section" className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">Recent Opportunities</h2>
-            <Link to="/opportunities">
-              <Button variant="outline">View All</Button>
-            </Link>
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Explore Opportunities</h2>
+            <p className="text-lg text-gray-600">
+              Browse available work and talented professionals across the SADC region
+            </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredOpportunities.map((opportunity) => (
-              <Card key={opportunity.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg">{opportunity.title}</CardTitle>
-                  <CardDescription className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    {opportunity.client_country}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-4">
-                    {opportunity.description}
-                  </p>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1">
-                      <DollarSign className="h-4 w-4 text-green-600" />
-                      <span className="font-medium">
-                        {opportunity.currency} {opportunity.budget}
-                      </span>
-                    </div>
-                    <Badge variant="outline">{opportunity.status}</Badge>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {opportunity.skills_required.slice(0, 2).map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {skill}
-                      </Badge>
-                    ))}
-                    {opportunity.skills_required.length > 2 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{opportunity.skills_required.length - 2} more
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <VisitorSearch opportunities={opportunities} providers={profiles} />
         </div>
       </section>
 
-      {/* Featured Service Providers */}
+      {/* What to Expect Section */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">Featured Service Providers</h2>
-            <Link to="/providers">
-              <Button variant="outline">View All</Button>
-            </Link>
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">What to Expect</h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProviders.map((provider) => (
-              <Card key={provider.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg">{provider.business_name}</CardTitle>
-                  <CardDescription className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    {provider.country}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-4">
-                    {provider.description}
-                  </p>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1">
-                      <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                      <span className="font-medium">
-                        {provider.rating > 0 ? provider.rating.toFixed(1) : 'New'}
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        ({provider.total_reviews})
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {provider.experience_years} years exp.
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <h3 className="text-2xl font-semibold mb-6">For Service Providers</h3>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <Star className="h-6 w-6 text-yellow-500 mt-1" />
+                  <div>
+                    <h4 className="font-medium">Find Quality Opportunities</h4>
+                    <p className="text-gray-600">Access vetted projects that match your skills and location</p>
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {provider.skills.slice(0, 3).map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {skill}
-                      </Badge>
-                    ))}
-                    {provider.skills.length > 3 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{provider.skills.length - 3} more
-                      </Badge>
-                    )}
+                </div>
+                <div className="flex items-start gap-3">
+                  <Shield className="h-6 w-6 text-blue-500 mt-1" />
+                  <div>
+                    <h4 className="font-medium">Secure Payments</h4>
+                    <p className="text-gray-600">Protected transactions through our escrow system</p>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+                <div className="flex items-start gap-3">
+                  <Users className="h-6 w-6 text-green-500 mt-1" />
+                  <div>
+                    <h4 className="font-medium">Build Your Reputation</h4>
+                    <p className="text-gray-600">Earn ratings and build a strong professional profile</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-2xl font-semibold mb-6">For Clients</h3>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <Briefcase className="h-6 w-6 text-purple-500 mt-1" />
+                  <div>
+                    <h4 className="font-medium">Access Skilled Professionals</h4>
+                    <p className="text-gray-600">Find verified experts across various industries</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Shield className="h-6 w-6 text-blue-500 mt-1" />
+                  <div>
+                    <h4 className="font-medium">Quality Assurance</h4>
+                    <p className="text-gray-600">Review ratings and portfolios before hiring</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Users className="h-6 w-6 text-green-500 mt-1" />
+                  <div>
+                    <h4 className="font-medium">Direct Communication</h4>
+                    <p className="text-gray-600">Chat directly with service providers through our platform</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -339,15 +222,15 @@ const Home = () => {
             <div>
               <h4 className="font-semibold mb-4">For Clients</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><Link to="/opportunities" className="hover:text-white">Find Services</Link></li>
+                <li><Link to="/auth" className="hover:text-white">Find Services</Link></li>
                 <li><Link to="/auth" className="hover:text-white">Post a Project</Link></li>
-                <li><Link to="/providers" className="hover:text-white">Browse Providers</Link></li>
+                <li><Link to="/auth" className="hover:text-white">Browse Providers</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">For Providers</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><Link to="/opportunities" className="hover:text-white">Find Work</Link></li>
+                <li><Link to="/auth" className="hover:text-white">Find Work</Link></li>
                 <li><Link to="/auth" className="hover:text-white">Create Profile</Link></li>
                 <li><Link to="/auth" className="hover:text-white">Build Portfolio</Link></li>
               </ul>

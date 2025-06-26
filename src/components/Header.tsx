@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/indexedDBAuth';
@@ -13,7 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
 import { ModeToggle } from './ModeToggle';
-import { Sun, Moon } from "lucide-react"
 
 const Header = () => {
   const { profile, logout } = useAuthStore();
@@ -22,7 +22,7 @@ const Header = () => {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/auth');
+    navigate('/');
     toast({
       title: "Logged out",
       description: "You have been successfully logged out.",
@@ -30,14 +30,14 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-background border-b">
+    <header className="bg-background border-b sticky top-0 z-40">
       <div className="container flex items-center justify-between h-16">
-        <Link to="/" className="text-2xl font-bold">
+        <Link to={profile ? "/dashboard" : "/"} className="text-2xl font-bold">
           SkillZone
         </Link>
 
         <div className="hidden md:flex items-center space-x-4">
-          {profile && (
+          {profile ? (
             <>
               <Link to="/dashboard" className="text-gray-600 hover:text-gray-900">
                 Dashboard
@@ -66,6 +66,14 @@ const Header = () => {
                 </Link>
               )}
             </>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => {
+                document.getElementById('search-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}>
+                Browse
+              </Button>
+            </>
           )}
         </div>
 
@@ -76,7 +84,7 @@ const Header = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="h-8 w-8 p-0">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={`https://avatar.vercel.sh/${profile.email}.png`} alt={profile.name} />
+                    <AvatarImage src={profile.profile_image || `https://avatar.vercel.sh/${profile.email}.png`} alt={profile.name} />
                     <AvatarFallback>{profile.name.charAt(0).toUpperCase()}</AvatarFallback>
                   </Avatar>
                 </Button>
@@ -93,14 +101,9 @@ const Header = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <>
-              <Link to="/login" className="text-gray-600 hover:text-gray-900">
-                Login
-              </Link>
-              <Link to="/register" className="bg-primary text-primary-foreground rounded-md px-4 py-2 hover:bg-primary/80">
-                Register
-              </Link>
-            </>
+            <Link to="/auth">
+              <Button>Get Started</Button>
+            </Link>
           )}
         </div>
       </div>
