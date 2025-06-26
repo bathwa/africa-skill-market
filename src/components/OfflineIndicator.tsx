@@ -3,7 +3,7 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { WifiOff, Wifi, Sync, AlertCircle, CheckCircle } from 'lucide-react';
+import { WifiOff, Wifi, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import { useSyncStore } from '@/stores/syncStore';
 
 const OfflineIndicator = () => {
@@ -38,7 +38,7 @@ const OfflineIndicator = () => {
             <Badge variant={isOnline ? "default" : "secondary"}>
               {isOnline ? 'Online' : 'Offline'}
             </Badge>
-            {isSyncing && <Sync className="h-4 w-4 animate-spin text-blue-600" />}
+            {isSyncing && <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />}
           </div>
 
           {pendingOps.length > 0 && (
@@ -78,12 +78,12 @@ const OfflineIndicator = () => {
               >
                 {isSyncing ? (
                   <>
-                    <Sync className="h-3 w-3 mr-1 animate-spin" />
+                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                     Syncing...
                   </>
                 ) : (
                   <>
-                    <Sync className="h-3 w-3 mr-1" />
+                    <RefreshCw className="h-3 w-3 mr-1" />
                     {failedOps.length > 0 ? 'Retry' : 'Sync Now'}
                   </>
                 )}

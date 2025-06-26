@@ -45,13 +45,13 @@ if ('serviceWorker' in navigator) {
         });
 
         // Register for background sync if supported
-        if ('sync' in window.ServiceWorkerRegistration.prototype) {
-          registration.sync.register('skillzone-sync').catch(console.error);
+        if ('sync' in (window as any).ServiceWorkerRegistration.prototype) {
+          (registration as any).sync?.register('skillzone-sync').catch(console.error);
         }
 
         // Register for periodic background sync if supported
-        if ('periodicSync' in window.ServiceWorkerRegistration.prototype) {
-          registration.periodicSync.register('skillzone-periodic-sync', {
+        if ('periodicSync' in (window as any).ServiceWorkerRegistration.prototype) {
+          (registration as any).periodicSync?.register('skillzone-periodic-sync', {
             minInterval: 24 * 60 * 60 * 1000, // 24 hours
           }).catch(console.error);
         }
