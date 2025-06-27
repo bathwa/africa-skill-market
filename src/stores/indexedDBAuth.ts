@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase, supabaseHelpers } from '@/lib/supabase';
@@ -13,10 +14,11 @@ export interface Profile {
   id: string;
   email: string;
   name: string;
-  role: 'user' | 'admin' | 'super_admin';
+  role: 'client' | 'service_provider' | 'admin' | 'super_admin';
   country: string;
   tokens: number;
   phone?: string;
+  profile_picture_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +33,9 @@ interface AuthState {
   signUp: (email: string, password: string, name: string, country: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  login: (email: string, password: string, adminKey?: string) => Promise<{ success: boolean; error?: string }>;
+  register: (userData: { email: string; password: string; name: string; country: string; phone?: string; role: 'client' | 'service_provider' }) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearError: () => void;
@@ -241,8 +246,6 @@ export const useAuthStore = create<AuthState>()(
               created_at: data.user.created_at
             };
             
-            // Profile will be created by the database trigger
-            // We'll fetch it in the next step
             set({ user, isAuthenticated: true, isLoading: false });
             
             // Cache in IndexedDB
@@ -311,6 +314,30 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      // Alias methods for compatibility
+      login: async (email: string, password: string, adminKey?: string) => {
+        try {
+          // Check for admin access
+          if (SUPER_ADMIN_EMAILS.includes(email) && adminKey === ADMIN_KEY) {
+            // Admin login logic
+          }
+          
+          await get().signIn(email, password);
+          return { success: true };
+        } catch (error: any) {
+          return { success: false, error: error.message || 'Login failed' };
+        }
+      },
+
+      register: async (userData) => {
+        try {
+          await get().signUp(userData.email, userData.password, userData.name, userData.country);
+          return { success: true };
+        } catch (error: any) {
+          return { success: false, error: error.message || 'Registration failed' };
+        }
+      },
+
       signOut: async () => {
         try {
           set({ isLoading: true });
@@ -331,6 +358,11 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      // Alias for compatibility
+      logout: async () => {
+        await get().signOut();
+      },
+
       updateProfile: async (updates: Partial<Profile>) => {
         try {
           const { profile } = get();
@@ -342,7 +374,7 @@ export const useAuthStore = create<AuthState>()(
           if (error) throw error;
           
           if (data) {
-            const updatedProfile = { ...profile, ...data };
+            const updatedProfile = { ...profile, ...updates };
             set({ profile: updatedProfile });
             
             // Cache in IndexedDB

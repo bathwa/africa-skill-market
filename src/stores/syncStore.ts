@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase, supabaseHelpers } from '@/lib/supabase';
@@ -95,53 +96,6 @@ class SyncDB {
 const syncDB = new SyncDB();
 
 /**
- * Conflict resolution strategies for handling data conflicts between local and remote data.
- * Conflicts can occur when the same data is modified both offline and online.
- */
-const conflictResolvers = {
-  /**
-   * Last-write-wins strategy: compares timestamps and keeps the most recent version.
-   * This is the default strategy for most data types.
-   */
-  lastWriteWins: (localData: any, remoteData: any) => {
-    const localTimestamp = new Date(localData.updated_at || localData.created_at).getTime();
-    const remoteTimestamp = new Date(remoteData.updated_at || remoteData.created_at).getTime();
-    return localTimestamp > remoteTimestamp ? localData : remoteData;
-  },
-
-  /**
-   * Merge strategy: intelligently combines local and remote data for specific tables.
-   * This is used for data that can be safely merged without losing information.
-   */
-  merge: (localData: any, remoteData: any, table: string) => {
-    const merged = { ...remoteData };
-    
-    switch (table) {
-      case 'profiles':
-        // Merge profile data, preferring local for personal info, remote for system fields
-        merged.name = localData.name || remoteData.name;
-        merged.phone = localData.phone || remoteData.phone;
-        merged.tokens = Math.max(localData.tokens || 0, remoteData.tokens || 0);
-        break;
-      
-      case 'opportunities':
-        // Merge opportunity data
-        merged.title = localData.title || remoteData.title;
-        merged.description = localData.description || remoteData.description;
-        merged.budget = localData.budget || remoteData.budget;
-        merged.access_count = Math.max(localData.access_count || 0, remoteData.access_count || 0);
-        break;
-      
-      default:
-        // Default to last-write-wins for unknown tables
-        return conflictResolvers.lastWriteWins(localData, remoteData);
-    }
-    
-    return merged;
-  }
-};
-
-/**
  * Performs actual Supabase operations based on the sync operation type.
  * This is the bridge between the offline queue and the online database.
  */
@@ -151,38 +105,38 @@ const performSupabaseOperation = async (operation: SyncOperation): Promise<any> 
   try {
     switch (type) {
       case 'CREATE':
-        switch (table) {
-          case 'opportunities':
-            return await supabaseHelpers.createOpportunity(data);
-          case 'service_providers':
-            return await supabaseHelpers.createServiceProvider(data);
-          case 'payment_vouchers':
-            return await supabaseHelpers.createPaymentVoucher(data);
-          case 'token_transactions':
-            return await supabaseHelpers.createTokenTransaction(data);
-          default:
-            return await supabase.from(table).insert(data).select().single();
+        if (table === 'opportunities') {
+          return await supabaseHelpers.createOpportunity(data);
+        } else if (table === 'service_providers') {
+          return await supabaseHelpers.createServiceProvider(data);
+        } else if (table === 'payment_vouchers') {
+          return await supabaseHelpers.createPaymentVoucher(data);
+        } else if (table === 'token_transactions') {
+          return await supabaseHelpers.createTokenTransaction(data);
+        } else {
+          // Generic create for other tables
+          return await supabase.from(table as any).insert(data).select().single();
         }
       
       case 'UPDATE':
-        switch (table) {
-          case 'profiles':
-            return await supabaseHelpers.updateProfile(data.id, data);
-          case 'opportunities':
-            return await supabaseHelpers.updateOpportunity(data.id, data);
-          case 'payment_vouchers':
-            return await supabaseHelpers.updatePaymentVoucher(data.id, data);
-          default:
-            return await supabase.from(table).update(data).eq('id', data.id);
+        if (table === 'profiles') {
+          return await supabaseHelpers.updateProfile(data.id, data);
+        } else if (table === 'opportunities') {
+          return await supabaseHelpers.updateOpportunity(data.id, data);
+        } else if (table === 'payment_vouchers') {
+          return await supabaseHelpers.updatePaymentVoucher(data.id, data);
+        } else {
+          // Generic update for other tables
+          return await supabase.from(table as any).update(data).eq('id', data.id);
         }
       
       case 'DELETE':
-        return await supabase.from(table).delete().eq('id', data.id);
+        return await supabase.from(table as any).delete().eq('id', data.id);
       
       default:
         throw new Error(`Unknown operation type: ${type}`);
     }
-  } catch (error) {
+  } catch (error: any) {
     // Handle specific Supabase errors
     if (error.code === '23505') { // Unique constraint violation
       throw new Error('CONFLICT: Data already exists');
@@ -294,7 +248,7 @@ export const useSyncStore = create<SyncState>()(
                 )
               }));
 
-            } catch (error) {
+            } catch (error: any) {
               console.error('Sync operation failed:', error);
               
               // Handle conflicts

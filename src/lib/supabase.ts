@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/integrations/supabase/types'
 
@@ -184,6 +185,11 @@ export const supabaseHelpers = {
   },
 
   async updateUserRole(userId: string, role: string) {
+    const validRoles = ['user', 'admin', 'super_admin'];
+    if (!validRoles.includes(role)) {
+      throw new Error(`Invalid role: ${role}`);
+    }
+    
     return await supabase
       .from('profiles')
       .update({ role })
