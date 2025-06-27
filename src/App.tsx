@@ -1,27 +1,36 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, Suspense, lazy } from "react";
 import { useAuthStore } from "@/stores/indexedDBAuth";
 import { Loader2 } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
 
-// Pages
-import Home from "./pages/Home";
-import AuthPage from "./pages/Auth/AuthPage";
-import Dashboard from "./pages/Dashboard";
-import ServiceProviders from "./pages/ServiceProviders";
-import Opportunities from "./pages/Opportunities";
-import CreateOpportunity from "./pages/Client/CreateOpportunity";
-import ManageOpportunities from "./pages/Client/ManageOpportunities";
-import CreateProvider from "./pages/Provider/CreateProvider";
-import AdminPanel from "./pages/Admin/AdminPanel";
-import NotFound from "./pages/NotFound";
+// Lazy load pages for code splitting
+const Home = lazy(() => import("./pages/Home"));
+const AuthPage = lazy(() => import("./pages/Auth/AuthPage"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const ServiceProviders = lazy(() => import("./pages/ServiceProviders"));
+const Opportunities = lazy(() => import("./pages/Opportunities"));
+const CreateOpportunity = lazy(() => import("./pages/Client/CreateOpportunity"));
+const ManageOpportunities = lazy(() => import("./pages/Client/ManageOpportunities"));
+const CreateProvider = lazy(() => import("./pages/Provider/CreateProvider"));
+const AdminPanel = lazy(() => import("./pages/Admin/AdminPanel"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Loading component for lazy-loaded pages
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="text-center">
+      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+      <p>Loading...</p>
+    </div>
+  </div>
+);
 
 // Configure React Query for offline-first behavior
 const queryClient = new QueryClient({
@@ -55,14 +64,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuthStore();
   
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
   
   return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
@@ -73,14 +75,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuthStore();
   
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
   
   return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" replace />;
@@ -108,12 +103,7 @@ const App = () => {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-              <p>Initializing SkillZone...</p>
-            </div>
-          </div>
+          <PageLoader />
         </TooltipProvider>
       </QueryClientProvider>
     );
@@ -126,20 +116,22 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
-              <Route path="/login" element={<Navigate to="/auth" replace />} />
-              <Route path="/register" element={<Navigate to="/auth" replace />} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/providers" element={<ProtectedRoute><ServiceProviders /></ProtectedRoute>} />
-              <Route path="/opportunities" element={<ProtectedRoute><Opportunities /></ProtectedRoute>} />
-              <Route path="/client/create" element={<ProtectedRoute><CreateOpportunity /></ProtectedRoute>} />
-              <Route path="/client/manage" element={<ProtectedRoute><ManageOpportunities /></ProtectedRoute>} />
-              <Route path="/provider/create" element={<ProtectedRoute><CreateProvider /></ProtectedRoute>} />
-              <Route path="/admin/*" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
+                <Route path="/login" element={<Navigate to="/auth" replace />} />
+                <Route path="/register" element={<Navigate to="/auth" replace />} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/providers" element={<ProtectedRoute><ServiceProviders /></ProtectedRoute>} />
+                <Route path="/opportunities" element={<ProtectedRoute><Opportunities /></ProtectedRoute>} />
+                <Route path="/client/create" element={<ProtectedRoute><CreateOpportunity /></ProtectedRoute>} />
+                <Route path="/client/manage" element={<ProtectedRoute><ManageOpportunities /></ProtectedRoute>} />
+                <Route path="/provider/create" element={<ProtectedRoute><CreateProvider /></ProtectedRoute>} />
+                <Route path="/admin/*" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
             
             {/* Global Components */}
             <OfflineIndicator />

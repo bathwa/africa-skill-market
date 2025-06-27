@@ -1,27 +1,24 @@
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase, supabaseHelpers } from '@/lib/supabase';
+
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  created_at: string;
+}
 
 export interface Profile {
   id: string;
   email: string;
   name: string;
-  role: 'user' | 'client' | 'service_provider' | 'admin' | 'super_admin';
+  role: 'user' | 'admin' | 'super_admin';
   country: string;
   tokens: number;
   phone?: string;
-  profile_image?: string;
-  experience_points?: number;
-  rating?: number;
-  total_ratings?: number;
   created_at: string;
   updated_at: string;
-}
-
-interface User {
-  id: string;
-  email: string;
-  created_at: string;
 }
 
 interface AuthState {
@@ -29,11 +26,14 @@ interface AuthState {
   profile: Profile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, adminKey?: string) => Promise<{ success: boolean; error?: string }>;
-  register: (userData: { email: string; password: string; name: string; country: string; phone?: string; role?: 'client' | 'service_provider' }) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
-  updateProfile: (updates: Partial<Profile>) => Promise<{ success: boolean; error?: string }>;
-  initialize: () => void;
+  error: string | null;
+  initialize: () => Promise<void>;
+  signUp: (email: string, password: string, name: string, country: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  updateProfile: (updates: Partial<Profile>) => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  clearError: () => void;
 }
 
 // SADC Countries
@@ -56,7 +56,7 @@ const ADMIN_KEY = 'vvv.ndev';
 export const TOKEN_PRICE_USD = 0.50;
 export const TOKEN_PRICE_ZAR = 10;
 
-// IndexedDB operations
+// IndexedDB operations for offline functionality
 class AuthDB {
   private dbName = 'skillzone-auth';
   private version = 1;
@@ -78,7 +78,7 @@ class AuthDB {
         // Users store
         if (!db.objectStoreNames.contains('users')) {
           const userStore = db.createObjectStore('users', { keyPath: 'id' });
-          userStore.createIndex('email', 'email',   { unique: true });
+          userStore.createIndex('email', 'email', { unique: true });
         }
         
         // Profiles store
@@ -94,19 +94,12 @@ class AuthDB {
     });
   }
 
-  async saveUser(user: User, password: string): Promise<void> {
+  async saveUser(user: User): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     
-    const transaction = this.db.transaction(['users', 'passwords'], 'readwrite');
-    const userStore = transaction.objectStore('users');
-    const passwordStore = transaction.objectStore('passwords');
-    
-    // Enhanced password hashing
-    const salt = crypto.randomUUID();
-    const hashedPassword = btoa(password + salt + user.email);
-    
-    await userStore.put(user);
-    await passwordStore.put({ userId: user.id, password: hashedPassword, salt });
+    const transaction = this.db.transaction(['users'], 'readwrite');
+    const store = transaction.objectStore('users');
+    await store.put(user);
   }
 
   async getUser(email: string): Promise<User | null> {
@@ -119,27 +112,6 @@ class AuthDB {
     return new Promise((resolve, reject) => {
       const request = index.get(email);
       request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async validatePassword(userId: string, password: string, email: string): Promise<boolean> {
-    if (!this.db) throw new Error('Database not initialized');
-    
-    const transaction = this.db.transaction(['passwords'], 'readonly');
-    const store = transaction.objectStore('passwords');
-    
-    return new Promise((resolve, reject) => {
-      const request = store.get(userId);
-      request.onsuccess = () => {
-        if (request.result) {
-          const { salt } = request.result;
-          const expectedHash = btoa(password + salt + email);
-          resolve(request.result.password === expectedHash);
-        } else {
-          resolve(false);
-        }
-      };
       request.onerror = () => reject(request.error);
     });
   }
@@ -188,156 +160,222 @@ export const useAuthStore = create<AuthState>()(
       profile: null,
       isAuthenticated: false,
       isLoading: true,
+      error: null,
 
-      initialize: () => {
-        set({ isLoading: false });
-      },
-
-      login: async (email: string, password: string, adminKey?: string) => {
+      initialize: async () => {
         try {
           set({ isLoading: true });
           
+          // Initialize IndexedDB
           await authDB.init();
-          const user = await authDB.getUser(email);
           
-          if (!user) {
-            set({ isLoading: false });
-            return { success: false, error: 'User not found' };
-          }
-
-          const isValidPassword = await authDB.validatePassword(user.id, password, email);
+          // Check for existing Supabase session
+          const { data: { session }, error } = await supabase.auth.getSession();
           
-          if (!isValidPassword) {
-            set({ isLoading: false });
-            return { success: false, error: 'Invalid password' };
-          }
-
-          let profile = await authDB.getProfile(user.id);
-          
-          // Check for super admin login
-          if (SUPER_ADMIN_EMAILS.includes(email) && adminKey === ADMIN_KEY && profile) {
-            profile = {
-              ...profile,
-              role: 'super_admin'
+          if (session?.user) {
+            const user: User = {
+              id: session.user.id,
+              email: session.user.email!,
+              name: session.user.user_metadata?.name,
+              created_at: session.user.created_at
             };
-            await authDB.saveProfile(profile);
+            
+            // Try to get profile from Supabase first
+            const { data: profile, error: profileError } = await supabaseHelpers.getProfile(user.id);
+            
+            if (profile && !profileError) {
+              set({
+                user,
+                profile,
+                isAuthenticated: true,
+                isLoading: false
+              });
+              
+              // Cache in IndexedDB
+              await authDB.saveUser(user);
+              await authDB.saveProfile(profile);
+            } else {
+              // Fallback to IndexedDB
+              const cachedProfile = await authDB.getProfile(user.id);
+              if (cachedProfile) {
+                set({
+                  user,
+                  profile: cachedProfile,
+                  isAuthenticated: true,
+                  isLoading: false
+                });
+              } else {
+                set({
+                  user,
+                  isAuthenticated: true,
+                  isLoading: false
+                });
+              }
+            }
+          } else {
+            set({ isLoading: false });
           }
-          
-          set({ 
-            user,
-            profile,
-            isAuthenticated: true,
-            isLoading: false 
-          });
-          
-          return { success: true };
         } catch (error) {
-          console.error('Login error:', error);
+          console.error('Auth initialization failed:', error);
           set({ isLoading: false });
-          return { success: false, error: 'An unexpected error occurred' };
         }
       },
 
-      register: async (userData) => {
+      signUp: async (email: string, password: string, name: string, country: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // Sign up with Supabase
+          const { data, error } = await supabaseHelpers.signUp(email, password, {
+            name,
+            country
+          });
+          
+          if (error) throw error;
+          
+          if (data.user) {
+            const user: User = {
+              id: data.user.id,
+              email: data.user.email!,
+              name: data.user.user_metadata?.name,
+              created_at: data.user.created_at
+            };
+            
+            // Profile will be created by the database trigger
+            // We'll fetch it in the next step
+            set({ user, isAuthenticated: true, isLoading: false });
+            
+            // Cache in IndexedDB
+            await authDB.saveUser(user);
+            
+            // Fetch the created profile
+            await get().refreshProfile();
+          }
+        } catch (error: any) {
+          console.error('Sign up failed:', error);
+          set({ 
+            error: error.message || 'Sign up failed', 
+            isLoading: false 
+          });
+        }
+      },
+
+      signIn: async (email: string, password: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // Sign in with Supabase
+          const { data, error } = await supabaseHelpers.signIn(email, password);
+          
+          if (error) throw error;
+          
+          if (data.user) {
+            const user: User = {
+              id: data.user.id,
+              email: data.user.email!,
+              name: data.user.user_metadata?.name,
+              created_at: data.user.created_at
+            };
+            
+            // Fetch profile
+            const { data: profile, error: profileError } = await supabaseHelpers.getProfile(user.id);
+            
+            if (profile && !profileError) {
+              set({
+                user,
+                profile,
+                isAuthenticated: true,
+                isLoading: false
+              });
+              
+              // Cache in IndexedDB
+              await authDB.saveUser(user);
+              await authDB.saveProfile(profile);
+            } else {
+              // Fallback to cached profile
+              const cachedProfile = await authDB.getProfile(user.id);
+              set({
+                user,
+                profile: cachedProfile,
+                isAuthenticated: true,
+                isLoading: false
+              });
+            }
+          }
+        } catch (error: any) {
+          console.error('Sign in failed:', error);
+          set({ 
+            error: error.message || 'Sign in failed', 
+            isLoading: false 
+          });
+        }
+      },
+
+      signOut: async () => {
         try {
           set({ isLoading: true });
           
-          await authDB.init();
+          // Sign out from Supabase
+          await supabaseHelpers.signOut();
           
-          // Check if user already exists
-          const existingUser = await authDB.getUser(userData.email);
-          if (existingUser) {
-            set({ isLoading: false });
-            return { success: false, error: 'User already exists' };
-          }
-
-          // Check admin count for role assignment
-          const allProfiles = await authDB.getAllProfiles();
-          const adminCount = allProfiles.filter(p => 
-            p.role === 'admin' || p.role === 'super_admin'
-          ).length;
-
-          const userId = crypto.randomUUID();
-          const now = new Date().toISOString();
-          
-          const user: User = {
-            id: userId,
-            email: userData.email,
-            created_at: now,
-          };
-
-          // Determine role based on registration type and admin count
-          let role: Profile['role'] = userData.role || 'user';
-          
-          // Auto-assign admin role if super admin email or if admin count < 3
-          if (SUPER_ADMIN_EMAILS.includes(userData.email)) {
-            role = 'super_admin';
-          } else if (adminCount < 3 && !userData.role) {
-            role = 'admin';
-          }
-
-          const profile: Profile = {
-            id: userId,
-            email: userData.email,
-            name: userData.name,
-            country: userData.country,
-            phone: userData.phone,
-            role: role,
-            tokens: 10,
-            experience_points: role === 'service_provider' ? 0 : undefined,
-            rating: role === 'service_provider' ? 0 : undefined,
-            total_ratings: role === 'service_provider' ? 0 : undefined,
-            created_at: now,
-            updated_at: now,
-          };
-
-          await authDB.saveUser(user, userData.password);
-          await authDB.saveProfile(profile);
-          
-          set({ 
-            user,
-            profile,
-            isAuthenticated: true,
-            isLoading: false 
+          // Clear local state
+          set({
+            user: null,
+            profile: null,
+            isAuthenticated: false,
+            isLoading: false
           });
-          
-          return { success: true };
         } catch (error) {
-          console.error('Registration error:', error);
+          console.error('Sign out failed:', error);
           set({ isLoading: false });
-          return { success: false, error: 'An unexpected error occurred' };
         }
       },
 
-      logout: () => {
-        set({ 
-          user: null, 
-          profile: null, 
-          isAuthenticated: false 
-        });
-      },
-
-      updateProfile: async (updates) => {
+      updateProfile: async (updates: Partial<Profile>) => {
         try {
           const { profile } = get();
-          if (!profile) return { success: false, error: 'No profile found' };
-
-          const updatedProfile = {
-            ...profile,
-            ...updates,
-            updated_at: new Date().toISOString(),
-          };
-
-          await authDB.init();
-          await authDB.saveProfile(updatedProfile);
+          if (!profile) throw new Error('No profile to update');
           
-          set({ profile: updatedProfile });
-          return { success: true };
-        } catch (error) {
-          console.error('Update profile error:', error);
-          return { success: false, error: 'An unexpected error occurred' };
+          // Update in Supabase
+          const { data, error } = await supabaseHelpers.updateProfile(profile.id, updates);
+          
+          if (error) throw error;
+          
+          if (data) {
+            const updatedProfile = { ...profile, ...data };
+            set({ profile: updatedProfile });
+            
+            // Cache in IndexedDB
+            await authDB.saveProfile(updatedProfile);
+          }
+        } catch (error: any) {
+          console.error('Profile update failed:', error);
+          set({ error: error.message || 'Profile update failed' });
         }
       },
+
+      refreshProfile: async () => {
+        try {
+          const { user } = get();
+          if (!user) return;
+          
+          // Fetch from Supabase
+          const { data: profile, error } = await supabaseHelpers.getProfile(user.id);
+          
+          if (profile && !error) {
+            set({ profile });
+            
+            // Cache in IndexedDB
+            await authDB.saveProfile(profile);
+          }
+        } catch (error) {
+          console.error('Profile refresh failed:', error);
+        }
+      },
+
+      clearError: () => {
+        set({ error: null });
+      }
     }),
     {
       name: 'skillzone-auth',
@@ -349,3 +387,36 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Listen for auth state changes from Supabase
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'SIGNED_IN' && session?.user) {
+    const user: User = {
+      id: session.user.id,
+      email: session.user.email!,
+      name: session.user.user_metadata?.name,
+      created_at: session.user.created_at
+    };
+    
+    // Fetch profile
+    const { data: profile } = await supabaseHelpers.getProfile(user.id);
+    
+    useAuthStore.setState({
+      user,
+      profile: profile || null,
+      isAuthenticated: true
+    });
+    
+    // Cache in IndexedDB
+    await authDB.saveUser(user);
+    if (profile) {
+      await authDB.saveProfile(profile);
+    }
+  } else if (event === 'SIGNED_OUT') {
+    useAuthStore.setState({
+      user: null,
+      profile: null,
+      isAuthenticated: false
+    });
+  }
+});
