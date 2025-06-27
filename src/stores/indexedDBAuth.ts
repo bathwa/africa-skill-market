@@ -218,7 +218,7 @@ export const useAuthStore = create<AuthState>()(
                 country: profile.country,
                 tokens: profile.tokens,
                 phone: profile.phone || undefined,
-                profile_picture_url: profile.profile_picture_url || undefined,
+                profile_picture_url: (profile as any).profile_picture_url || undefined,
                 created_at: profile.created_at,
                 updated_at: profile.updated_at
               };
@@ -326,7 +326,7 @@ export const useAuthStore = create<AuthState>()(
                 country: profile.country,
                 tokens: profile.tokens,
                 phone: profile.phone || undefined,
-                profile_picture_url: profile.profile_picture_url || undefined,
+                profile_picture_url: (profile as any).profile_picture_url || undefined,
                 created_at: profile.created_at,
                 updated_at: profile.updated_at
               };
@@ -456,7 +456,7 @@ export const useAuthStore = create<AuthState>()(
               country: profile.country,
               tokens: profile.tokens,
               phone: profile.phone || undefined,
-              profile_picture_url: profile.profile_picture_url || undefined,
+              profile_picture_url: (profile as any).profile_picture_url || undefined,
               created_at: profile.created_at,
               updated_at: profile.updated_at
             };
@@ -509,7 +509,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
         country: profile.country,
         tokens: profile.tokens,
         phone: profile.phone || undefined,
-        profile_picture_url: profile.profile_picture_url || undefined,
+        profile_picture_url: (profile as any).profile_picture_url || undefined,
         created_at: profile.created_at,
         updated_at: profile.updated_at
       };
