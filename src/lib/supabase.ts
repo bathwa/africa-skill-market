@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/integrations/supabase/types'
 
-// These will be replaced with actual values when you add them to Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
+// Use the actual Supabase project details
+const supabaseUrl = 'https://jxsxbtiasjujksyzrxdn.supabase.co'
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4c3hidGlhc2p1amtzeXpyeGRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzNTcxMzYsImV4cCI6MjA2NTkzMzEzNn0.7tiXBddCW_1mIcLz03OFQr3apNRxGG0nnc-r1YQX6FE'
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -236,4 +236,4 @@ export const realtimeSubscriptions = {
       }, callback)
       .subscribe()
   }
-} 
+}

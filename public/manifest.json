@@ -2,16 +2,13 @@
 {
   "name": "SkillZone - SADC Skills Marketplace",
   "short_name": "SkillZone",
-  "description": "Connect with skilled professionals across the SADC region. Find opportunities, offer services, and build your career in an offline-first environment.",
+  "description": "Connecting skills across SADC regions",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#2563eb",
-  "orientation": "portrait-primary",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
   "scope": "/",
-  "categories": ["business", "productivity", "social", "finance"],
-  "lang": "en",
-  "dir": "ltr",
   "icons": [
     {
       "src": "/lovable-uploads/66e50579-9d23-4c55-a7d5-b7ecbf89cccd.png",
@@ -21,60 +18,13 @@
     },
     {
       "src": "/lovable-uploads/66e50579-9d23-4c55-a7d5-b7ecbf89cccd.png",
-      "sizes": "512x512", 
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/lovable-uploads/66e50579-9d23-4c55-a7d5-b7ecbf89cccd.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Find Opportunities",
-      "short_name": "Opportunities", 
-      "description": "Browse available work opportunities",
-      "url": "/opportunities",
-      "icons": [
-        {
-          "src": "/lovable-uploads/66e50579-9d23-4c55-a7d5-b7ecbf89cccd.png",
-          "sizes": "96x96"
-        }
-      ]
-    },
-    {
-      "name": "Service Providers",
-      "short_name": "Providers",
-      "description": "Find skilled service providers",
-      "url": "/providers", 
-      "icons": [
-        {
-          "src": "/lovable-uploads/66e50579-9d23-4c55-a7d5-b7ecbf89cccd.png",
-          "sizes": "96x96"
-        }
-      ]
-    },
-    {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
-      "description": "Access your personal dashboard",
-      "url": "/dashboard",
-      "icons": [
-        {
-          "src": "/lovable-uploads/66e50579-9d23-4c55-a7d5-b7ecbf89cccd.png", 
-          "sizes": "96x96"
-        }
-      ]
-    }
-  ],
-  "related_applications": [],
-  "prefer_related_applications": false,
-  "edge_side_panel": {
-    "preferred_width": 400
-  }
+  "categories": ["business", "productivity", "social"],
+  "lang": "en",
+  "dir": "ltr",
+  "prefer_related_applications": false
 }

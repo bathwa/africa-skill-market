@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +10,7 @@ import { Loader2 } from "lucide-react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
+import Layout from "@/components/Layout";
 
 // Lazy load pages for code splitting
 const Home = lazy(() => import("./pages/Home"));
@@ -103,7 +105,9 @@ const App = () => {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <PageLoader />
+          <Layout showHeader={false}>
+            <PageLoader />
+          </Layout>
         </TooltipProvider>
       </QueryClientProvider>
     );
@@ -113,30 +117,32 @@ const App = () => {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
-                <Route path="/login" element={<Navigate to="/auth" replace />} />
-                <Route path="/register" element={<Navigate to="/auth" replace />} />
-                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route path="/providers" element={<ProtectedRoute><ServiceProviders /></ProtectedRoute>} />
-                <Route path="/opportunities" element={<ProtectedRoute><Opportunities /></ProtectedRoute>} />
-                <Route path="/client/create" element={<ProtectedRoute><CreateOpportunity /></ProtectedRoute>} />
-                <Route path="/client/manage" element={<ProtectedRoute><ManageOpportunities /></ProtectedRoute>} />
-                <Route path="/provider/create" element={<ProtectedRoute><CreateProvider /></ProtectedRoute>} />
-                <Route path="/admin/*" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-            
-            {/* Global Components */}
-            <OfflineIndicator />
-            <PWAInstallBanner />
-          </BrowserRouter>
+          <Layout>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
+                  <Route path="/login" element={<Navigate to="/auth" replace />} />
+                  <Route path="/register" element={<Navigate to="/auth" replace />} />
+                  <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                  <Route path="/providers" element={<ProtectedRoute><ServiceProviders /></ProtectedRoute>} />
+                  <Route path="/opportunities" element={<ProtectedRoute><Opportunities /></ProtectedRoute>} />
+                  <Route path="/client/create" element={<ProtectedRoute><CreateOpportunity /></ProtectedRoute>} />
+                  <Route path="/client/manage" element={<ProtectedRoute><ManageOpportunities /></ProtectedRoute>} />
+                  <Route path="/provider/create" element={<ProtectedRoute><CreateProvider /></ProtectedRoute>} />
+                  <Route path="/admin/*" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+              
+              {/* Global Components */}
+              <OfflineIndicator />
+              <PWAInstallBanner />
+            </BrowserRouter>
+          </Layout>
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>
