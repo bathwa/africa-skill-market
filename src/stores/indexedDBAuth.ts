@@ -14,7 +14,7 @@ export interface Profile {
   id: string;
   email: string;
   name: string;
-  role: 'client' | 'service_provider' | 'admin' | 'super_admin';
+  role: 'user' | 'admin' | 'super_admin';
   country: string;
   tokens: number;
   phone?: string;
@@ -34,7 +34,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   login: (email: string, password: string, adminKey?: string) => Promise<{ success: boolean; error?: string }>;
-  register: (userData: { email: string; password: string; name: string; country: string; phone?: string; role: 'client' | 'service_provider' }) => Promise<{ success: boolean; error?: string }>;
+  register: (userData: { email: string; password: string; name: string; country: string; phone?: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -189,16 +189,29 @@ export const useAuthStore = create<AuthState>()(
             const { data: profile, error: profileError } = await supabaseHelpers.getProfile(user.id);
             
             if (profile && !profileError) {
+              const typedProfile: Profile = {
+                id: profile.id,
+                email: profile.email,
+                name: profile.name,
+                role: profile.role as 'user' | 'admin' | 'super_admin',
+                country: profile.country,
+                tokens: profile.tokens,
+                phone: profile.phone || undefined,
+                profile_picture_url: profile.profile_picture_url || undefined,
+                created_at: profile.created_at,
+                updated_at: profile.updated_at
+              };
+              
               set({
                 user,
-                profile,
+                profile: typedProfile,
                 isAuthenticated: true,
                 isLoading: false
               });
               
               // Cache in IndexedDB
               await authDB.saveUser(user);
-              await authDB.saveProfile(profile);
+              await authDB.saveProfile(typedProfile);
             } else {
               // Fallback to IndexedDB
               const cachedProfile = await authDB.getProfile(user.id);
@@ -284,16 +297,29 @@ export const useAuthStore = create<AuthState>()(
             const { data: profile, error: profileError } = await supabaseHelpers.getProfile(user.id);
             
             if (profile && !profileError) {
+              const typedProfile: Profile = {
+                id: profile.id,
+                email: profile.email,
+                name: profile.name,
+                role: profile.role as 'user' | 'admin' | 'super_admin',
+                country: profile.country,
+                tokens: profile.tokens,
+                phone: profile.phone || undefined,
+                profile_picture_url: profile.profile_picture_url || undefined,
+                created_at: profile.created_at,
+                updated_at: profile.updated_at
+              };
+              
               set({
                 user,
-                profile,
+                profile: typedProfile,
                 isAuthenticated: true,
                 isLoading: false
               });
               
               // Cache in IndexedDB
               await authDB.saveUser(user);
-              await authDB.saveProfile(profile);
+              await authDB.saveProfile(typedProfile);
             } else {
               // Fallback to cached profile
               const cachedProfile = await authDB.getProfile(user.id);
@@ -395,10 +421,23 @@ export const useAuthStore = create<AuthState>()(
           const { data: profile, error } = await supabaseHelpers.getProfile(user.id);
           
           if (profile && !error) {
-            set({ profile });
+            const typedProfile: Profile = {
+              id: profile.id,
+              email: profile.email,
+              name: profile.name,
+              role: profile.role as 'user' | 'admin' | 'super_admin',
+              country: profile.country,
+              tokens: profile.tokens,
+              phone: profile.phone || undefined,
+              profile_picture_url: profile.profile_picture_url || undefined,
+              created_at: profile.created_at,
+              updated_at: profile.updated_at
+            };
+            
+            set({ profile: typedProfile });
             
             // Cache in IndexedDB
-            await authDB.saveProfile(profile);
+            await authDB.saveProfile(typedProfile);
           }
         } catch (error) {
           console.error('Profile refresh failed:', error);
@@ -433,16 +472,32 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     // Fetch profile
     const { data: profile } = await supabaseHelpers.getProfile(user.id);
     
+    let typedProfile: Profile | null = null;
+    if (profile) {
+      typedProfile = {
+        id: profile.id,
+        email: profile.email,
+        name: profile.name,
+        role: profile.role as 'user' | 'admin' | 'super_admin',
+        country: profile.country,
+        tokens: profile.tokens,
+        phone: profile.phone || undefined,
+        profile_picture_url: profile.profile_picture_url || undefined,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at
+      };
+    }
+    
     useAuthStore.setState({
       user,
-      profile: profile || null,
+      profile: typedProfile,
       isAuthenticated: true
     });
     
     // Cache in IndexedDB
     await authDB.saveUser(user);
-    if (profile) {
-      await authDB.saveProfile(profile);
+    if (typedProfile) {
+      await authDB.saveProfile(typedProfile);
     }
   } else if (event === 'SIGNED_OUT') {
     useAuthStore.setState({

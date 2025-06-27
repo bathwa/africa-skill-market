@@ -192,7 +192,7 @@ export const supabaseHelpers = {
     
     return await supabase
       .from('profiles')
-      .update({ role })
+      .update({ role: role as any })
       .eq('id', userId)
   },
 

@@ -126,7 +126,7 @@ const UserManagement = () => {
 
     const updatedUser = {
       ...user,
-      role: 'user' as const, // Demote to regular user
+      role: 'user' as const,
       updated_at: new Date().toISOString()
     };
 
@@ -173,8 +173,7 @@ const UserManagement = () => {
     switch (role) {
       case 'super_admin': return 'bg-red-100 text-red-800';
       case 'admin': return 'bg-orange-100 text-orange-800';
-      case 'service_provider': return 'bg-blue-100 text-blue-800';
-      case 'client': return 'bg-green-100 text-green-800';
+      case 'user': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -207,8 +206,6 @@ const UserManagement = () => {
             <SelectContent>
               <SelectItem value="all">All Roles</SelectItem>
               <SelectItem value="user">User</SelectItem>
-              <SelectItem value="client">Client</SelectItem>
-              <SelectItem value="service_provider">Service Provider</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="super_admin">Super Admin</SelectItem>
             </SelectContent>
@@ -295,8 +292,6 @@ const UserManagement = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">User</SelectItem>
-                      <SelectItem value="client">Client</SelectItem>
-                      <SelectItem value="service_provider">Service Provider</SelectItem>
                       {currentProfile.role === 'super_admin' && (
                         <>
                           <SelectItem value="admin">Admin</SelectItem>
