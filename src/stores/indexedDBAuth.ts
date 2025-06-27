@@ -14,7 +14,7 @@ export interface Profile {
   id: string;
   email: string;
   name: string;
-  role: 'user' | 'admin' | 'super_admin';
+  role: 'user' | 'admin' | 'super_admin' | 'client' | 'service_provider';
   country: string;
   tokens: number;
   phone?: string;
@@ -34,7 +34,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   login: (email: string, password: string, adminKey?: string) => Promise<{ success: boolean; error?: string }>;
-  register: (userData: { email: string; password: string; name: string; country: string; phone?: string }) => Promise<{ success: boolean; error?: string }>;
+  register: (userData: { email: string; password: string; name: string; country: string; phone?: string; role?: 'client' | 'service_provider' }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -60,6 +60,27 @@ const ADMIN_KEY = 'vvv.ndev';
 // Token pricing
 export const TOKEN_PRICE_USD = 0.50;
 export const TOKEN_PRICE_ZAR = 10;
+
+// Helper function to map database roles to frontend roles
+const mapDatabaseRoleToFrontend = (dbRole: string): Profile['role'] => {
+  switch (dbRole) {
+    case 'user': return 'client'; // Default users are clients
+    case 'admin': return 'admin';
+    case 'super_admin': return 'super_admin';
+    default: return 'client';
+  }
+};
+
+// Helper function to map frontend roles to database roles
+const mapFrontendRoleToDatabase = (frontendRole: Profile['role']): string => {
+  switch (frontendRole) {
+    case 'client': return 'user';
+    case 'service_provider': return 'user';
+    case 'admin': return 'admin';
+    case 'super_admin': return 'super_admin';
+    default: return 'user';
+  }
+};
 
 // IndexedDB operations for offline functionality
 class AuthDB {
@@ -193,11 +214,11 @@ export const useAuthStore = create<AuthState>()(
                 id: profile.id,
                 email: profile.email,
                 name: profile.name,
-                role: profile.role as 'user' | 'admin' | 'super_admin',
+                role: mapDatabaseRoleToFrontend(profile.role),
                 country: profile.country,
                 tokens: profile.tokens,
                 phone: profile.phone || undefined,
-                profile_picture_url: profile.profile_picture_url || undefined,
+                profile_picture_url: undefined,
                 created_at: profile.created_at,
                 updated_at: profile.updated_at
               };
@@ -301,11 +322,11 @@ export const useAuthStore = create<AuthState>()(
                 id: profile.id,
                 email: profile.email,
                 name: profile.name,
-                role: profile.role as 'user' | 'admin' | 'super_admin',
+                role: mapDatabaseRoleToFrontend(profile.role),
                 country: profile.country,
                 tokens: profile.tokens,
                 phone: profile.phone || undefined,
-                profile_picture_url: profile.profile_picture_url || undefined,
+                profile_picture_url: undefined,
                 created_at: profile.created_at,
                 updated_at: profile.updated_at
               };
@@ -394,8 +415,14 @@ export const useAuthStore = create<AuthState>()(
           const { profile } = get();
           if (!profile) throw new Error('No profile to update');
           
+          // Map frontend role to database role if updating role
+          const dbUpdates = { ...updates };
+          if (updates.role) {
+            dbUpdates.role = mapFrontendRoleToDatabase(updates.role);
+          }
+          
           // Update in Supabase
-          const { data, error } = await supabaseHelpers.updateProfile(profile.id, updates);
+          const { data, error } = await supabaseHelpers.updateProfile(profile.id, dbUpdates);
           
           if (error) throw error;
           
@@ -425,11 +452,11 @@ export const useAuthStore = create<AuthState>()(
               id: profile.id,
               email: profile.email,
               name: profile.name,
-              role: profile.role as 'user' | 'admin' | 'super_admin',
+              role: mapDatabaseRoleToFrontend(profile.role),
               country: profile.country,
               tokens: profile.tokens,
               phone: profile.phone || undefined,
-              profile_picture_url: profile.profile_picture_url || undefined,
+              profile_picture_url: undefined,
               created_at: profile.created_at,
               updated_at: profile.updated_at
             };
@@ -478,11 +505,11 @@ supabase.auth.onAuthStateChange(async (event, session) => {
         id: profile.id,
         email: profile.email,
         name: profile.name,
-        role: profile.role as 'user' | 'admin' | 'super_admin',
+        role: mapDatabaseRoleToFrontend(profile.role),
         country: profile.country,
         tokens: profile.tokens,
         phone: profile.phone || undefined,
-        profile_picture_url: profile.profile_picture_url || undefined,
+        profile_picture_url: undefined,
         created_at: profile.created_at,
         updated_at: profile.updated_at
       };
